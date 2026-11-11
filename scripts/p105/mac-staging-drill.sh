@@ -124,9 +124,22 @@ fi
 docker exec "$restore_container" sh -c \
   'grep -qx "SYNTHETIC-MAC-STAGING-FILE" /synthetic-uploads/nested/file.txt'
 echo "PASS: independent DB/pgvector and upload-volume recovery"
-# Existing DEV containers must remain unaffected.
+# Verify pre-existing DEV containers IF this host actually has them.
+# GitHub hosted runners are clean and deliberately have no DEV stack.
+# Never accept a stopped DEV container as a success on the Mac.
+dev_seen=0
 for name in colanode-dev-postgres-1 colanode-dev-valkey-1; do
-  docker inspect "$name" --format '{{.State.Running}}' | grep -q '^true$'
+  if docker container inspect "$name" >/dev/null 2>&1; then
+    docker inspect "$name" --format '{{.State.Running}}' | grep -q '^true$'
+    dev_seen=$((dev_seen + 1))
+  fi
 done
-echo "PASS: original DEV PostgreSQL and Valkey remained running"
+if test "$dev_seen" -eq 2; then
+  echo "PASS: original Mac DEV PostgreSQL and Valkey remained running"
+elif test "$dev_seen" -eq 0; then
+  echo "PASS: fresh CI runner has no existing DEV containers to disturb"
+else
+  echo "Unexpected partial DEV environment; cannot claim isolation" >&2
+  exit 3
+fi
 echo "P1-05 Mac synthetic staging drill PASS; cleanup follows"
