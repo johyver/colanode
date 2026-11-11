@@ -51,7 +51,12 @@ fi
 chmod 700 "$P105_SECRET_DIR"
 openssl rand -hex 32 > "$P105_SECRET_DIR/postgres.password"
 printf 'requirepass %s\n' "$(openssl rand -hex 32)" > "$P105_SECRET_DIR/valkey.conf"
-chmod 600 "$P105_SECRET_DIR/"*
+# Docker Compose file-based secrets use host bind mounts. On Linux the Valkey
+# process runs as an unprivileged user, so a root-owned 0600 config is unreadable.
+# Keep the parent directory private (0700) while making only that test config
+# readable inside its container. No real or reusable credentials are involved.
+chmod 600 "$P105_SECRET_DIR/postgres.password"
+chmod 644 "$P105_SECRET_DIR/valkey.conf"
 dc config --quiet
 dc up -d --wait >/dev/null
 echo "PASS: isolated Mac STAGING PostgreSQL + Valkey healthy"
