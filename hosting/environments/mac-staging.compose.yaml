@@ -1,0 +1,58 @@
+# P1-05 synthetic-only Mac/Colima staging services.
+# No Colanode application services or Notion data are deployed here.
+# Runs only with opt-in profile; generated unique names avoid DEV collisions.
+name: ${P105_PROJECT:?Unique synthetic project name is required}
+
+services:
+  postgres:
+    profiles: [synthetic-staging]
+    container_name: ${P105_SOURCE_CONTAINER:?A disposable source name is required}
+    image: pgvector/pgvector:pg17
+    restart: "no"
+    shm_size: 64m
+    mem_limit: 512m
+    cpus: 0.6
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets: [pg_password]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - uploads:/synthetic-uploads
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    security_opt: ["no-new-privileges:true"]
+
+  valkey:
+    profiles: [synthetic-staging]
+    container_name: ${P105_VALKEY_CONTAINER:?A disposable Valkey name is required}
+    image: valkey/valkey:8.1
+    restart: "no"
+    mem_limit: 128m
+    cpus: 0.2
+    command: ["valkey-server", "/run/secrets/valkey_conf"]
+    secrets: [valkey_conf]
+    volumes:
+      - valkey_data:/data
+    networks: [private]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  private:
+    internal: true
+
+volumes:
+  pg_data:
+  valkey_data:
+  uploads:
+
+secrets:
+  pg_password:
+    file: ${P105_SECRET_DIR:?Disposable secret directory is required}/postgres.password
+  valkey_conf:
+    file: ${P105_SECRET_DIR:?Disposable secret directory is required}/valkey.conf

@@ -1,123 +1,95 @@
-# P1-05 | Colanode backup, restore and environment separation
+# Colanode P1-05 — Mac-only environments and encrypted recovery
 
-PREPARATION ONLY. Neither Synology staging nor production is deployed.
-Do not export/import/sync real Notion pages, restart the running Mac
-Colanode app, or modify existing Synology Container Manager projects.
+The owner selected the MacBook M5 as the only application host. Neither
+Synology nor Windows is a Colanode-hosting requirement. Notion remains
+the current source of truth; real-content transfer is strictly prohibited.
 
-## Separation model
+## Mac preflight — 2026-11-12
 
-| Tier | Intended location | Status | Data and volumes |
-| --- | --- | --- | --- |
-| DEV | Existing Mac at ~/Projects/colanode-clone and colanode-dev Compose | Running; untouched by P1-05 | Existing disposable dev PostgreSQL and Valkey only |
-| STAGING | Proposed Synology project colanode-p105-staging | NO approval or capacity verification | Separate database, Valkey, files, secrets, backups and TLS route |
-| PROD | Future separately authorized stack | NOT deployed | Independent database, files, networks and credentials |
+MacBook M5: ARM64, 10 CPU cores, 16 GB physical RAM, macOS 27.2.
+Colima is running with 2 vCPU, 4 GB RAM and an 18 GB Docker VM disk.
+VM Docker filesystem had about 15 GB free. However the MAC HOST DISK
+was 97% used, with just 14 GiB free. Both existing DEV Postgres and
+Valkey containers were healthy; DEV API and web returned HTTP 200.
 
-The staging candidate blueprint is staging.compose.yaml. It has unique
-project volumes, an internal private backend network, no host-published ports,
-out-of-Git secret files and non-default approved-staging-only profiles.
-Server and web images use invalid registry placeholders deliberately. The
-blueprint is NOT deployable as supplied; it needs independently verified
-ARM64 immutable image digests, TLS routing, server configuration and an
-owner-approved NAS capacity plan.
+This is insufficient headroom to start a full second Colanode server
+and web build responsibly. Do not clean user files, caches, images,
+volumes, or other projects without separate authorization.
 
-Candidate NAS paths, NOT CREATED:
-- /volume1/colanode-p105/staging/
-- /volume1/colanode-p105/staging-secrets/
-- /volume1/colanode-p105/staging-backups/
+## Environment separation
 
-No secret or backup should reside in the Git repository or web root. Existing
-DSM projects retain their exact names, paths and services.
+DEV: existing Mac checkout, running Colima Postgres + Valkey and locally
+running app; DO NOT restart or alter these services.
 
-## Synology read-only preflight, 2026-11-12
+SYNTHETIC STAGING TEST: temporary Mac/Colima Compose project with
+dedicated PostgreSQL/pgvector, Valkey and upload volumes. It uses unique
+project and container names, an internal-only Docker network, NO
+published ports, generated disposable credential files, and opt-in
+synthetic-staging service profiles. PostgreSQL is limited to 512 MiB
+RAM and 0.6 CPU; Valkey to 128 MiB and 0.2 CPU. Completely cleaned up
+after testing. This is NOT a full Colanode app deployment.
 
-DSM admin API and WebDAV connected, Container Manager 24.0.2-1706 running.
-Six existing projects must be preserved:
-hostaway-browser, synology-chatgpt-mcp, synology-smb-gateway,
-hyver-browser-agent, openclaw-agent and hyver-agent.
+FULL STAGING: future Mac-local web/API/Postgres/Valkey/file stack,
+synthetic data only, separate volumes, ports and secrets. NOT deployed
+because host storage headroom is insufficient. P7-01 later covers
+integrated application staging and restart/persistence verification.
 
-SYNO.Core.System.Utilization returned total_real=501548 KiB (about 490 MiB
-physical RAM), real_usage=52 to 54 percent, and swap_usage=31 percent.
-This is INADEQUATE/UNVERIFIED capacity for another four-service application.
-Confirm the NAS model, potential RAM expansion and real available memory
-before approving any staging deployment.
+PRIVATE PROD: future separately reviewed Mac deployment, not approved
+or running. Isolate it from DEV and STAGING. Do not migrate Notion until
+every required application feature, CRDT integrity and QA gate passes
+and the user separately approves migration.
 
-Disk I/O utilization was about 98 to 100 percent during sampling; this is
-not an indicator of disk space fullness. Actual free volume capacity remains
-UNKNOWN because the DSM Storage Volume API returned errors and the Mac's NAS
-mount was inaccessible. Never infer capacity from the indexed file sitemap.
+## Mac synthetic staging recovery proof
 
-Container Manager's offered package has an ARMv8 build. Local Mac
-pgvector:pg17 and valkey:8.1 images are linux/arm64; actual NAS server/web
-image availability, signatures and digests require verification before
-creating a NAS project. No DSM containers, volumes or files were modified.
+Run from repository root (free Restic, Docker, Compose, Python and
+OpenSSL required):
 
-## Encrypted synthetic recovery test
+    python3 scripts/p105/verify-mac-staging.py
+    bash scripts/p105/mac-staging-drill.sh
 
-Run:
+The drill creates fresh PostgreSQL+pgvector and authenticated Valkey
+containers with no published host ports, plus dedicated Docker volumes
+for database, queue and fake uploaded files. It writes fake rows and
+files, dumps the fake PostgreSQL DB and copies the synthetic upload
+volume to a temporary directory. It encrypts these with Restic and a
+SHA-256 inventory, copies the encrypted repo to a second temporary
+location, deletes the primary repo, then changes the source data.
 
-    bash scripts/p105/smoke-test.sh
+Next it restores the original two rows and pgvector extension to a
+fresh disposable PostgreSQL container and restores files into a NEW
+upload volume, checking hashes and contents. The existing DEV
+Postgres and Valkey remain running and unmodified.
 
-Requirements: Docker daemon, pgvector/pgvector:pg17, Restic, Python 3 and
-OpenSSL. The test creates a tiny PostgreSQL source container and a separate
-target container with NO published host ports, fake upload files, a temporary
-encrypted Restic repository and a random password available only during the
-test. It does the following:
+Cleanup removes ONLY this run's uniquely named staging volumes,
+containers, temporary encrypted snapshots and generated credentials.
+The older independent smoke-test.sh also verifies corruption and
+overwrite detection. Both are synthetic-only; no real content or
+Notion credentials may enter these tests.
 
-1. Create an isolated database with two synthetic rows and pgvector.
-2. Dump the database in pg_dump custom format and copy the fake uploaded
-   files. Generate a SHA-256 inventory over all payload files.
-3. Create an encrypted Restic snapshot, validate the repository and erase
-   the temporary plaintext dump.
-4. Alter the source database and files AFTER the backup, then restore to
-   the new disposable target, confirming the original two rows and vector
-   extension are intact.
-5. Confirm restored file hashes; deliberately corrupt a file to verify
-   tampering is detected; reject overwrite and rejects the existing DEV
-   Postgres container as a synthetic backup source.
-6. Delete both disposable containers, test folder and random password.
+The Backup and restore drill CI job must pass both recovery tests
+on a clean hosted runner. The staging blueprint lives at
+hosting/environments/mac-staging.compose.yaml, and uses placeholder
+environment variables with NO credentials in Git.
 
-Backup.sh and restore.sh are intentionally SYNTHETIC-ONLY, with guardrails
-on container names and temporary paths. They are NOT currently approved
-for production or staging content. This prevents the preparation work
-from accidentally accessing real records or existing NAS projects.
+## Backup policy — PROPOSED, not activated
 
-## Proposed policy: not activated
+Daily consistent database/file snapshots, encrypted at rest, with
+proposed 7 daily, 4 weekly and 6 monthly retention, full restore
+testing and alerts, subject to user review. No destructive retention
+pruning or new schedule has been configured.
 
-- Run daily application-consistent encrypted PostgreSQL and upload backups
-  once a staging environment is separately approved. Coordinate a quiet
-  file/database checkpoint so uploads agree with the database snapshot.
-- Suggest 7 daily, 4 weekly and 6 monthly snapshots for discussion. Do not
-  enable prune/forget operations before approval, offsite capacity checks
-  and a legal/data-retention review.
-- Keep an independent encrypted OFF-NAS copy with separate credentials,
-  for example a separate owner-controlled SFTP or S3-compatible destination.
-  NAS-only backups do not protect from NAS hardware failure.
-- Store the Restic password in a restricted secret manager or offline escrow;
-  losing it renders encrypted backups unrecoverable. Never print passwords
-  in logs or commit them.
-- Alert on failed backups and test full clean restore periodically, then
-  verify database row counts, attachments and CRDT content consistency.
-- Proposed targets (not promises): RPO <= 24 hours and RTO <= 4 hours,
-  pending realistic data-volume and recovery-duration measurements.
-- Valkey session/cache state and unfinished upload jobs need a separately
-  documented recovery policy; database/files alone are not a full
-  production disaster-recovery strategy.
+The Mac is a single failure domain. A second encrypted backup folder
+ON THIS SAME MAC is NOT disaster recovery. A separate off-Mac copy
+and a clean restore from that physical external drive or another
+independent, user-controlled device remain required for P1-05.
+No external backup destination was selected or used.
 
-## No-go gates before NAS staging deployment
+## Hard no-go gates
 
-1. Confirm NAS model, physical RAM, CPU/ARM64 details, actual free storage
-   and current workloads. Existing Synology projects must not be degraded.
-2. Verify the exact container image architectures/digests on the NAS,
-   including web and server, and test TLS routing behind a private proxy.
-3. Obtain separate approval BEFORE creating NAS folders, credentials,
-   networks, containers, volumes, schedules or offsite replication.
-4. Implement staging-specific backup commands with app-consistent snapshots,
-   configure an off-NAS encrypted destination, and perform an actual
-   isolated staging recovery drill.
-5. Continue P2-01A CRDT undo/data-loss repair and all other product,
-   desktop, responsive, integration and release QA.
-6. Obtain a future explicit migration/cutover approval. Until then,
-   Notion remains the unchanged source of truth.
-
-The synthetic test proves the recovery mechanism, NOT that Synology hosting,
-backups, a go-live, or Notion migration have been completed.
+- Mac host free space remains about 14 GiB (97% used). Verify adequate
+  headroom before full integrated staging, AI models or permanent services.
+- Off-Mac encrypted backup plus actual external-copy restore unverified.
+- Full local Colanode web/API staging unverified; P7-01 is separate.
+- P2-01A CRDT undo/data-loss and other application feature/release
+  gates still block real Notion data migration.
+- The current DEV checkout, services and secrets must remain untouched.
