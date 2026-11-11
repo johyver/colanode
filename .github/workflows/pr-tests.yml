@@ -41,6 +41,8 @@ jobs:
           cache: npm
       - name: Clean install from committed lockfile
         run: npm ci --no-audit --no-fund
+      - name: Verify patched Metro image-size compatibility
+        run: node scripts/verify-metro-image-size.mjs
       - name: Build backend and web dependencies
         run: npx turbo run build --filter=@colanode/server --filter=@colanode/web
       # Server Vitest tests use disposable Postgres and Redis Testcontainers on

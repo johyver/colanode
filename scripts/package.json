@@ -18,7 +18,7 @@
   "dependencies": {
     "@colanode/core": "*",
     "@colanode/crdt": "*",
-    "adm-zip": "^0.5.17",
+    "adm-zip": "^0.6.1",
     "better-sqlite3": "^12.8.0",
     "ky": "^1.14.3",
     "svg-sprite": "^2.0.4",

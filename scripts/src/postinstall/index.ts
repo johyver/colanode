@@ -108,3 +108,32 @@ const execute = () => {
 };
 
 execute();
+
+// Metro 0.83 passes filenames into image-size. Patched image-size >=2.1.0
+// deliberately accepts bytes instead of filenames. Keep Metro's asset
+// behavior intact until its upstream dependency is updated.
+const patchMetroImageSizing = () => {
+  const assetsPath = path.resolve('node_modules', 'metro', 'src', 'Assets.js');
+  if (!fs.existsSync(assetsPath)) {
+    return;
+  }
+
+  const before = '(0, _imageSize.default)(isImageInput)';
+  const after =
+    '(0, _imageSize.default)(typeof isImageInput === "string" ? _fs.default.readFileSync(isImageInput) : isImageInput)';
+  const source = fs.readFileSync(assetsPath, 'utf8');
+
+  if (source.includes(after)) {
+    return; // Idempotent on repeated install runs.
+  }
+
+  if (!source.includes(before)) {
+    throw new Error(
+      'Unsupported Metro Assets.js implementation; review image-size compatibility before installation.'
+    );
+  }
+
+  fs.writeFileSync(assetsPath, source.replace(before, after));
+};
+
+patchMetroImageSizing();
