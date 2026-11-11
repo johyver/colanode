@@ -17,6 +17,7 @@ import { database } from '@colanode/server/data/database';
 import { SelectAccount } from '@colanode/server/data/schema';
 import { eventBus } from '@colanode/server/lib/event-bus';
 import { getNameFromEmail } from '@colanode/server/lib/utils';
+import { canInviteWorkspaceRole } from '@colanode/server/lib/workspace-role-policy';
 import { jobService } from '@colanode/server/services/job-service';
 
 export const usersCreateRoute: FastifyPluginCallbackZod = (
@@ -62,6 +63,19 @@ export const usersCreateRoute: FastifyPluginCallbackZod = (
         return reply.code(403).send({
           code: ApiErrorCode.UserInviteNoAccess,
           message: 'You do not have access to invite users to this workspace.',
+        });
+      }
+
+      // Reject the whole batch before account creation, database writes,
+      // events or invitation emails. An invite cannot grant owner or none.
+      if (
+        input.users.some(
+          (user) => !canInviteWorkspaceRole(workspace.user.role, user.role)
+        )
+      ) {
+        return reply.code(403).send({
+          code: ApiErrorCode.UserInviteNoAccess,
+          message: 'You cannot grant one or more of the requested roles.',
         });
       }
 

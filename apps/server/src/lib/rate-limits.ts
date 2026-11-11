@@ -61,3 +61,14 @@ export const isDeviceSocketRateLimited = async (
     window: 60, // 1 minute
   });
 };
+
+// Action quotas are scoped to both the authenticated device and workspace.
+export const isWorkspaceActionRateLimited = async (
+  deviceId: string,
+  workspaceId: string
+): Promise<boolean> => {
+  return await isRateLimited('wa:' + deviceId + ':' + workspaceId, {
+    limit: 40,
+    window: 60,
+  });
+};

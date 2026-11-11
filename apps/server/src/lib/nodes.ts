@@ -367,6 +367,10 @@ export const createNodeFromMutation = async (
   }
 
   const tree = parentId ? await fetchNodeTree(parentId) : [];
+  if (tree.some((node) => node.workspace_id !== workspace.id)) {
+    return MutationStatus.FORBIDDEN;
+  }
+
   const canCreateNodeContext: CanCreateNodeContext = {
     user: {
       id: workspace.user.id,
