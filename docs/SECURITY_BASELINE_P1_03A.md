@@ -85,3 +85,25 @@ Audit source: GitHub Actions run [43092437542](https://github.com/johyver/colano
   in GitHub and verify the installed Metro dependency/asset tests.
 - Never disable required GitHub security checks, forge successful test results,
   merge without the required review, restart the Mac services, or migrate Notion.
+
+## Local regression verification and editor module resolution
+
+- An actual isolated Mac `npm ci --ignore-scripts` completed, then the
+  existing post-install script and the synthetic Metro PNG compatibility test
+  passed. The full workspace production `npm audit --omit=dev --audit-level=high`
+  passed after installation with zero critical/high findings.
+- All six Turbo lint tasks passed in the isolated security worktree.
+- The initial local server build found that Nodemailer 10 removed the
+  `nodemailer.Transporter` namespace reference; this was fixed with the
+  named `Transporter` type import. Server TypeScript compile and bundle then
+  passed.
+- The first local Vite web build found that third-party
+  `tiptap-extension-auto-joiner` imports `@tiptap/core` from the workspace
+  root; with Tiptap pinned per-package, it was hoisted only under sub-workspaces.
+  We added an explicit root development dependency on the same published,
+  compatible Tiptap `3.31.4` version. A real isolated reinstall, the Metro
+  regression and the full web production Vite/PWA build then passed.
+- **Still required before release:** hosted CI rerun on the final PR commit,
+  Docker image build + container security scan, server integration tests on
+  the new packages, local patched runtime adoption, and a separate CRDT fix.
+  No Notion migration or protected-branch merge was authorized.

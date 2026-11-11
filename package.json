@@ -40,7 +40,8 @@
     "typescript": "^5.9.3",
     "vitest": "^4.1.2",
     "image-size": "2.1.0",
-    "postcss": "8.5.32"
+    "postcss": "8.5.32",
+    "@tiptap/core": "3.31.4"
   },
   "dependencies": {
     "debug": "^4.4.3",
