@@ -82,10 +82,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install free encrypted backup client
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends restic
-      - name: Verify staging blueprint is private and non-deployable
-        run: python3 scripts/p105/verify-blueprint.py
+      - name: Verify isolated Mac synthetic staging blueprint
+        run: python3 scripts/p105/verify-mac-staging.py
       - name: Test encrypted synthetic PostgreSQL and file recovery
         run: bash scripts/p105/smoke-test.sh
+      - name: Test isolated Mac staging and separate-volume recovery
+        run: bash scripts/p105/mac-staging-drill.sh
 
   container-security:
     name: Container image security

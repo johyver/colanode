@@ -1,4 +1,0 @@
-# Documentation only, NOT credentials or a runnable deployment.
-P105_SERVER_IMAGE=registry.example.invalid/colanode/server@sha256:REPLACE_WITH_APPROVED_ARM64_DIGEST
-P105_WEB_IMAGE=registry.example.invalid/colanode/web@sha256:REPLACE_WITH_APPROVED_ARM64_DIGEST
-P105_SECRET_DIR=/volume1/colanode-p105/staging-secrets
