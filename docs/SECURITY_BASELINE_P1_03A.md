@@ -107,3 +107,22 @@ Audit source: GitHub Actions run [43092437542](https://github.com/johyver/colano
   Docker image build + container security scan, server integration tests on
   the new packages, local patched runtime adoption, and a separate CRDT fix.
   No Notion migration or protected-branch merge was authorized.
+
+## Final Docker image security validation
+
+- Pinned Node.js 22.23.4 Alpine image built locally after fixing the eight upstream
+  Dockerfile COPY statements that incorrectly traversed outside the build context.
+- Dockerfile-specific ignore patterns prevent sending local node_modules, git,
+  caches, and secret environment files into the image build context.
+- Initial Trivy scan found 10 high-severity vulnerability records in the base
+  Node image's global npm CLI bundle, not the Colanode production application.
+- After npm prune, we removed the unused global npm executable and package tree
+  from the runtime filesystem, preserving the node executable.
+- Rebuilt image passed Trivy 0.76.2 high/critical scan with ZERO high and ZERO
+  critical findings. The container runtime reports Node 22.23.4.
+- New GitHub Actions job Container image security rebuilds and scans the final
+  server image using immutable-pinned trivy-action v0.36.0.
+- Local scanner logs and JSON under /tmp/colanode-p103a-trivy-hardened.* are
+  evidence; no scanner secret data was committed to the repository.
+- All four GitHub jobs and approved code review are needed before promotion.
+  Do not alter production, restart the user's dev instance or migrate Notion.

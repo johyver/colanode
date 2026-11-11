@@ -73,3 +73,21 @@ jobs:
           path: npm-audit-report.json
           if-no-files-found: ignore
           retention-days: 7
+
+  container-security:
+    name: Container image security
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production server image from the repository root
+        run: docker build --file apps/server/Dockerfile --tag colanode-ci-security:current .
+      - name: Fail on critical or high OS and runtime library vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 immutable commit
+        with:
+          image-ref: colanode-ci-security:current
+          scanners: vuln
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          format: table
