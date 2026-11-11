@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 
 import { config } from '@colanode/server/lib/config';
 import { createLogger } from '@colanode/server/lib/logger';
@@ -13,7 +13,7 @@ interface EmailMessage {
 const logger = createLogger('server:service:email');
 
 class EmailService {
-  private transporter: nodemailer.Transporter | undefined;
+  private transporter: Transporter | undefined;
   private from: string | undefined;
 
   public async init() {

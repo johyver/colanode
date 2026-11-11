@@ -1,0 +1,19 @@
+# Dockerfile-specific context hygiene (relative to repository root).
+.git
+.git/**
+node_modules
+**/node_modules
+**/node_modules/**
+**/dist
+**/dist/**
+**/.turbo
+**/.turbo/**
+.localdev
+.localdev/**
+**/.env
+**/.env.*
+**/*.log
+**/*.tsbuildinfo
+.env
+.env.*
+.DS_Store
