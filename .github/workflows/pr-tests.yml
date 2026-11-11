@@ -74,6 +74,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  backup-restore:
+    name: Backup and restore drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install free encrypted backup client
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends restic
+      - name: Verify staging blueprint is private and non-deployable
+        run: python3 scripts/p105/verify-blueprint.py
+      - name: Test encrypted synthetic PostgreSQL and file recovery
+        run: bash scripts/p105/smoke-test.sh
+
   container-security:
     name: Container image security
     runs-on: ubuntu-latest
