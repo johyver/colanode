@@ -31,3 +31,7 @@ an explicit compatibility and security review.
 
 **Production lock:** All workspace records and file fixtures in test runners
 are synthetic. No real Notion export, import, sync or cutover is permitted.
+
+**Hosted-runner timeout:** The Vitest test step uses a 15-second per-test
+limit (versus the 5-second default) for slower synthetic large-file I/O on
+shared runners. Assertions are not skipped; slower or failing tests remain red.

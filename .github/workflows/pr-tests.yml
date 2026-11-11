@@ -46,7 +46,7 @@ jobs:
       # Server Vitest tests use disposable Postgres and Redis Testcontainers on
       # GitHub-hosted runners. No local DEV or production services are accessed.
       - name: Unit and integration tests (server, web, CRDT, core)
-        run: npx turbo run test --filter=@colanode/server --filter=@colanode/web --filter=@colanode/crdt --filter=@colanode/core -- --run
+        run: npx turbo run test --filter=@colanode/server --filter=@colanode/web --filter=@colanode/crdt --filter=@colanode/core -- --run --testTimeout=15000
 
   dependency-audit:
     name: Dependency audit
