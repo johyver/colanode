@@ -29,7 +29,10 @@ export const fileDownloadRoute: FastifyPluginCallbackZod = (
       const fileId = request.params.fileId;
 
       const tree = await fetchNodeTree(fileId);
-      if (tree.length === 0) {
+      if (
+        tree.length === 0 ||
+        tree.some((node) => node.workspace_id !== request.workspace.id)
+      ) {
         return reply.code(400).send({
           code: ApiErrorCode.FileNotFound,
           message: 'File not found.',

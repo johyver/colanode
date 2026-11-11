@@ -61,7 +61,7 @@ export const fileUploadTusRoute: FastifyPluginCallbackZod = (
         .where('id', '=', fileId)
         .executeTakeFirst();
 
-      if (!node) {
+      if (!node || node.workspace_id !== request.workspace.id) {
         return reply.code(404).send({
           code: ApiErrorCode.FileNotFound,
           message: 'File not found.',
