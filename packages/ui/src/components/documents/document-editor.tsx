@@ -7,7 +7,7 @@ import {
   useEditor,
 } from '@tiptap/react';
 import { debounce, isEqual } from 'lodash-es';
-import { Fragment, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -88,6 +88,7 @@ import {
 } from '@colanode/ui/editor/extensions';
 import { ToolbarMenu, ActionMenu } from '@colanode/ui/editor/menus';
 import { getDocumentHistoryAction } from '@colanode/ui/lib/document-history-shortcuts';
+import { applyRemoteDocumentUpdates } from '@colanode/ui/lib/remote-document-updates';
 
 interface DocumentEditorProps {
   node: LocalNode;
@@ -101,10 +102,8 @@ const buildYDoc = (
   state: DocumentState | null | undefined,
   updates: DocumentUpdate[]
 ) => {
-  const ydoc = new YDoc(state?.state);
-  for (const update of updates) {
-    ydoc.applyUpdate(update.data);
-  }
+  const ydoc = new YDoc();
+  applyRemoteDocumentUpdates(ydoc, state, updates);
   return ydoc;
 };
 
@@ -193,7 +192,7 @@ export const DocumentEditor = ({
   const workspace = useWorkspace();
 
   const hasPendingChanges = useRef(false);
-  const revisionRef = useRef(state?.revision ?? 0);
+  const [saveGeneration, setSaveGeneration] = useState(0);
   const ydocRef = useRef<YDoc>(buildYDoc(state, updates));
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
 
@@ -226,6 +225,9 @@ export const DocumentEditor = ({
         );
 
         hasPendingChanges.current = false;
+        // A remote update could have arrived while an editor save was pending.
+        // Retry reconciliation now that it is safe to update the editor view.
+        setSaveGeneration((generation) => generation + 1);
 
         if (!update) {
           return;
@@ -384,33 +386,22 @@ export const DocumentEditor = ({
       return;
     }
 
-    if (!state) {
-      return;
-    }
-
     if (hasPendingChanges.current) {
       return;
     }
 
-    if (revisionRef.current === state?.revision) {
-      return;
-    }
-
     const beforeContent = ydocRef.current.getObject<RichTextContent>();
+    const afterContent = applyRemoteDocumentUpdates(
+      ydocRef.current,
+      state,
+      updates
+    );
 
-    ydocRef.current.applyUpdate(state.state);
-    for (const update of updates) {
-      ydocRef.current.applyUpdate(update.data);
-    }
-
-    const afterContent = ydocRef.current.getObject<RichTextContent>();
-
-    if (isEqual(afterContent, beforeContent)) {
+    if (!afterContent || isEqual(afterContent, beforeContent)) {
       return;
     }
 
     const editorContent = buildEditorContent(node.id, afterContent);
-    revisionRef.current = state.revision;
 
     const relativeSelection = getRelativeSelection(editor);
     editor.chain().setContent(editorContent, { emitUpdate: false }).run();
@@ -418,7 +409,7 @@ export const DocumentEditor = ({
     if (relativeSelection != null) {
       restoreRelativeSelection(editor, relativeSelection);
     }
-  }, [state, updates, editor]);
+  }, [state, updates, editor, saveGeneration, node.id]);
 
   // Keep editorRef updated so handleKeyDown can access the current editor
   editorRef.current = editor;
