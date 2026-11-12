@@ -36,7 +36,7 @@ export class MutationService {
     );
   }
 
-  public async sync(): Promise<void> {
+  public async sync(): Promise<boolean> {
     try {
       let hasMutations = true;
 
@@ -45,8 +45,20 @@ export class MutationService {
       }
 
       await this.revertInvalidMutations();
+
+      // sendMutations also returns false on network failures. Do not report
+      // success to the job queue while a local mutation is still pending,
+      // otherwise offline edits can remain stranded until another edit occurs.
+      const pendingMutation = await this.workspace.database
+        .selectFrom('mutations')
+        .select('id')
+        .limit(1)
+        .executeTakeFirst();
+
+      return pendingMutation === undefined;
     } catch (error) {
       debug(`Error syncing mutations: ${error}`);
+      return false;
     }
   }
 
