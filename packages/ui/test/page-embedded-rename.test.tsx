@@ -50,6 +50,23 @@ vi.mock('@colanode/ui/components/ui/link', () => ({
     </a>
   ),
 }));
+vi.mock('@colanode/ui/components/nodes/node-delete-dialog', () => ({
+  NodeDeleteDialog: ({
+    open,
+    id,
+    onOpenChange,
+  }: {
+    open: boolean;
+    id: string;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="alertdialog" aria-label={`Confirm deleting ${id}`}>
+        <button onClick={() => onOpenChange(false)}>Cancel deletion</button>
+      </div>
+    ) : null,
+}));
+
 vi.mock('@colanode/ui/components/pages/page-update-dialog', () => ({
   PageUpdateDialog: ({ open }: { open: boolean }) =>
     open ? <div role="dialog" aria-label="Rename nested page" /> : null,
@@ -68,10 +85,10 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('embedded nested page rename action', () => {
+describe('embedded nested page icon actions', () => {
   it('opens the existing page edit dialog without navigating away', () => {
     render(<PageNodeView {...nodeProps} />);
-    const button = screen.getByRole('button', { name: 'Rename Untitled' });
+    const button = screen.getByRole('button', { name: 'Edit Untitled' });
     fireEvent.click(button);
     expect(
       screen.getByRole('dialog', { name: 'Rename nested page' })
@@ -79,10 +96,34 @@ describe('embedded nested page rename action', () => {
     expect(testState.navigationClicks).toBe(0);
   });
 
-  it('hides editing for users without an editor role', () => {
+  it('hides edit and delete controls for users without an editor role', () => {
     testState.role = 'viewer';
     render(<PageNodeView {...nodeProps} />);
-    expect(screen.queryByRole('button', { name: /rename/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /edit|delete/i })).toBeNull();
+    expect(screen.getByText('Untitled')).toBeTruthy();
+  });
+
+  it('shows compact icon-only Edit and Delete actions with accessible labels', () => {
+    render(<PageNodeView {...nodeProps} />);
+    const edit = screen.getByRole('button', { name: 'Edit Untitled' });
+    const remove = screen.getByRole('button', { name: 'Delete Untitled' });
+    expect(edit.textContent?.trim()).toBe('');
+    expect(remove.textContent?.trim()).toBe('');
+    expect(edit.getAttribute('title')).toBe('Edit Untitled');
+    expect(remove.getAttribute('title')).toBe('Delete Untitled');
+  });
+
+  it('opens a separate delete confirmation and never navigates on icon click', () => {
+    render(<PageNodeView {...nodeProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Untitled' }));
+    expect(
+      screen.getByRole('alertdialog', {
+        name: 'Confirm deleting synthetic-page',
+      })
+    ).toBeTruthy();
+    expect(testState.navigationClicks).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel deletion' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(screen.getByText('Untitled')).toBeTruthy();
   });
 
@@ -90,7 +131,10 @@ describe('embedded nested page rename action', () => {
     testState.name = 'Grandchild Page';
     render(<PageNodeView {...nodeProps} />);
     expect(
-      screen.getByRole('button', { name: 'Rename Grandchild Page' })
+      screen.getByRole('button', { name: 'Edit Grandchild Page' })
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Delete Grandchild Page' })
     ).toBeTruthy();
   });
 });
