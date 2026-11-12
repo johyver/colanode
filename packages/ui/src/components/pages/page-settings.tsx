@@ -6,6 +6,7 @@ import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
+import { Button } from '@colanode/ui/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,16 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
     <Fragment>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Settings className="size-4 cursor-pointer text-muted-foreground hover:text-foreground" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Page settings"
+            title="Page settings"
+            className="size-8 text-muted-foreground hover:text-foreground"
+          >
+            <Settings className="size-4" aria-hidden="true" />
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" className="mr-2 w-80">
           <DropdownMenuLabel>{page.name}</DropdownMenuLabel>
