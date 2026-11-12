@@ -21,13 +21,15 @@ no network or host ports. Existing Colanode databases and NAS data are untouched
 2. Maintain the synthetic Restic key under the local Mac Keychain service
    `Colanode-P1-05-Synology-Synthetic-Restic`. The independent password-manager
    vault must be retrievable from another device without access to this Mac.
-3. A dedicated synthetic staging fixture must be running/persistent. The
-   existing ephemeral Mac drill intentionally destroys its own source and
-   therefore **cannot** be scheduled as-is.
-4. Copy `mac-automation-config.example` to
-   `$HOME/Library/Application Support/ColanodeBackups/p105.env`, substitute
-   the exact synthetic source and destination, `chmod 600` the config, and
-   never include any passwords in it.
+3. Prepare a durable isolated synthetic staging fixture using
+   `./mac-synthetic-source.sh --prepare` exactly once. The script refuses
+   existing Docker volume/container/storage, creates only fake data,
+   publishes no ports, and writes a 0600 configuration. Do not reuse DEV.
+   The earlier ephemeral Mac drill still destroys its own source.
+4. The synthetic-source prepare script writes the private configuration
+   `$HOME/Library/Application Support/ColanodeBackups/p105.env` (0600).
+   `mac-automation-config.example` is available for review; never put a
+   password into the configuration.
 5. Independently initialize a **new**, empty encrypted repository in a
    dedicated subfolder with Restic (using the Keychain password command),
    after verifying the folder is empty. The script intentionally refuses
@@ -46,6 +48,8 @@ no network or host ports. Existing Colanode databases and NAS data are untouched
   disposable container. It does not require the source DB to be running.
 - `./mac-automation-install.sh --install` ONLY installs a 03:00 local-time
   launchd agent when all of preflight, backup, and independent restore PASS.
+  `--install-verified` uses the last hour of recorded backup and clean-restore
+  results plus fresh preflight, avoiding an unnecessary repeated large transfer.
   The agent is not installed by merely creating these code files.
 
 ## Retention and recovery

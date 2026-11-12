@@ -27,7 +27,7 @@ source "$CONFIG"
 : "${P105_DB_USER:?Missing database user}"
 [[ ${P105_ENVIRONMENT:-} == synthetic ]] || { err 'Synthetic environment gate missing'; exit 2; }
 [[ "$P105_SOURCE_CONTAINER" =~ ^colanode-p105-source-[a-z0-9-]+$ ]] || { err 'Protected source container: REFUSED'; exit 2; }
-[[ "$P105_UPLOADS_DIR" == /tmp/colanode-p105-* || "$P105_UPLOADS_DIR" == /private/tmp/colanode-p105-* ]] || { err 'Synthetic uploads path gate: REFUSED'; exit 2; }
+[[ "$P105_UPLOADS_DIR" == /tmp/colanode-p105-* || "$P105_UPLOADS_DIR" == /private/tmp/colanode-p105-* || "$P105_UPLOADS_DIR" == "$HOME/Library/Application Support/ColanodeBackups/synthetic-storage" ]] || { err 'Synthetic uploads path gate: REFUSED'; exit 2; }
 if [[ "$MODE" != --verify ]]; then
   [[ -f "$P105_UPLOADS_DIR/.p105-synthetic-only" ]] || { err 'Synthetic marker not found'; exit 2; }
 fi
