@@ -43,48 +43,53 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
       onOpenChange={setOpen}
       className="group/page-item w-full"
     >
-      <Link from="/workspace/$userId" to="$nodeId" params={{ nodeId: page.id }}>
-        {({ isActive }) => (
-          <div
-            className={cn(
-              'group/page-row text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
-              isActive &&
-                'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-            )}
-          >
-            {hasChildren ? (
-              <CollapsibleTrigger asChild>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setOpen(!open);
-                  }}
-                  className="flex items-center cursor-pointer rounded-sm hover:bg-sidebar-border"
-                >
-                  <Avatar
-                    id={page.id}
-                    avatar={page.avatar}
-                    name={page.name}
-                    className="group-hover/page-row:hidden size-4 shrink-0"
-                  />
-                  <ChevronRight className="hidden transition-transform group-hover/page-row:block group-data-[state=open]/page-item:rotate-90 size-4 shrink-0" />
-                </button>
-              </CollapsibleTrigger>
-            ) : (
+      <div className="group/page-row flex h-7 min-w-0 items-center gap-1 rounded-md px-1 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+        {hasChildren ? (
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              aria-label={`${open ? 'Collapse' : 'Expand'} ${page.name ?? 'Unnamed'} page`}
+              className="flex size-6 shrink-0 items-center justify-center rounded-sm hover:bg-sidebar-border focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                  'size-4 transition-transform',
+                  open && 'rotate-90'
+                )}
+              />
+            </button>
+          </CollapsibleTrigger>
+        ) : (
+          <span aria-hidden="true" className="size-6 shrink-0" />
+        )}
+        <Link
+          from="/workspace/$userId"
+          to="$nodeId"
+          params={{ nodeId: page.id }}
+          className="flex h-full min-w-0 flex-1 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+        >
+          {({ isActive }) => (
+            <span
+              className={cn(
+                'flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-1',
+                isActive &&
+                  'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+              )}
+            >
               <Avatar
                 id={page.id}
                 avatar={page.avatar}
                 name={page.name}
                 className="size-4 shrink-0"
               />
-            )}
-            <span className="line-clamp-1 w-full grow text-left">
-              {page.name ?? 'Unnamed'}
+              <span className="line-clamp-1 min-w-0 flex-1 text-left">
+                {page.name ?? 'Unnamed'}
+              </span>
             </span>
-          </div>
-        )}
-      </Link>
+          )}
+        </Link>
+      </div>
       {hasChildren && (
         <CollapsibleContent>
           <ul className="ml-3 flex min-w-0 flex-col gap-0.5 py-0.5">
