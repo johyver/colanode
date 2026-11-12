@@ -29,6 +29,9 @@ export class YDoc {
     this.doc = new Y.Doc();
     this.undoManager = new Y.UndoManager(this.doc.getMap('object'), {
       trackedOrigins: new Set([ORIGIN]),
+      // Each editor save represents its own undo step; default Yjs grouping
+      // merges rapid edits and can silently skip intermediate document states.
+      captureTimeout: 0,
     });
 
     if (state) {
@@ -96,15 +99,27 @@ export class YDoc {
     return update;
   }
 
-  public undo(): Uint8Array | null {
+  public undo(schema?: z.ZodSchema): Uint8Array | null {
     const updates: Uint8Array[] = [];
     const onUpdateCallback: (update: Uint8Array) => void = (update) => {
       updates.push(update);
     };
 
     this.doc.on('update', onUpdateCallback);
-    this.undoManager.undo();
-    this.doc.off('update', onUpdateCallback);
+    try {
+      this.undoManager.undo();
+      // A newly created document must not be undone to an invalid empty map.
+      // Restore the previous valid state locally and emit no sync mutation.
+      if (schema && !schema.safeParse(this.getObject()).success) {
+        this.undoManager.redo();
+        if (!schema.safeParse(this.getObject()).success) {
+          throw new Error('Failed to recover valid document after undo');
+        }
+        return null;
+      }
+    } finally {
+      this.doc.off('update', onUpdateCallback);
+    }
 
     if (updates.length === 0) {
       return null;
@@ -122,15 +137,25 @@ export class YDoc {
     return update;
   }
 
-  public redo(): Uint8Array | null {
+  public redo(schema?: z.ZodSchema): Uint8Array | null {
     const updates: Uint8Array[] = [];
     const onUpdateCallback: (update: Uint8Array) => void = (update) => {
       updates.push(update);
     };
 
     this.doc.on('update', onUpdateCallback);
-    this.undoManager.redo();
-    this.doc.off('update', onUpdateCallback);
+    try {
+      this.undoManager.redo();
+      if (schema && !schema.safeParse(this.getObject()).success) {
+        this.undoManager.undo();
+        if (!schema.safeParse(this.getObject()).success) {
+          throw new Error('Failed to recover valid document after redo');
+        }
+        return null;
+      }
+    } finally {
+      this.doc.off('update', onUpdateCallback);
+    }
 
     if (updates.length === 0) {
       return null;

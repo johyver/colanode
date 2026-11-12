@@ -87,6 +87,7 @@ import {
   Markdown,
 } from '@colanode/ui/editor/extensions';
 import { ToolbarMenu, ActionMenu } from '@colanode/ui/editor/menus';
+import { getDocumentHistoryAction } from '@colanode/ui/lib/document-history-shortcuts';
 
 interface DocumentEditorProps {
   node: LocalNode;
@@ -121,7 +122,7 @@ const performUndo = async ({
   userId,
 }: UndoRedoParams) => {
   const beforeContent = ydoc.getObject<RichTextContent>();
-  const update = ydoc.undo();
+  const update = ydoc.undo(richTextContentSchema);
 
   if (!update) {
     return;
@@ -134,7 +135,7 @@ const performUndo = async ({
   }
 
   const editorContent = buildEditorContent(nodeId, afterContent);
-  editor.chain().setContent(editorContent).run();
+  editor.chain().setContent(editorContent, { emitUpdate: false }).run();
 
   const result = await window.colanode.executeMutation({
     type: 'document.update',
@@ -155,10 +156,7 @@ const performRedo = async ({
   userId,
 }: UndoRedoParams) => {
   const beforeContent = ydoc.getObject<RichTextContent>();
-  console.log('beforeContent', beforeContent);
-  const update = ydoc.redo();
-  console.log('afterContent', ydoc.getObject<RichTextContent>());
-  console.log('update', update);
+  const update = ydoc.redo(richTextContentSchema);
 
   if (!update) {
     return;
@@ -171,7 +169,7 @@ const performRedo = async ({
   }
 
   const editorContent = buildEditorContent(nodeId, afterContent);
-  editor.chain().setContent(editorContent).run();
+  editor.chain().setContent(editorContent, { emitUpdate: false }).run();
 
   const result = await window.colanode.executeMutation({
     type: 'document.update',
@@ -340,36 +338,28 @@ export const DocumentEditor = ({
             return false;
           }
 
-          if (event.key === 'z' && event.metaKey && !event.shiftKey) {
-            event.preventDefault();
-            performUndo({
+          const historyAction = getDocumentHistoryAction(event);
+          if (!historyAction) {
+            return false;
+          }
+
+          event.preventDefault();
+          if (historyAction === 'undo') {
+            void performUndo({
               editor: editorRef.current,
               ydoc: ydocRef.current,
               nodeId: node.id,
               userId: workspace.userId,
             });
-            return true;
-          }
-          if (event.key === 'z' && event.metaKey && event.shiftKey) {
-            event.preventDefault();
-            performRedo({
+          } else {
+            void performRedo({
               editor: editorRef.current,
               ydoc: ydocRef.current,
               nodeId: node.id,
               userId: workspace.userId,
             });
-            return true;
           }
-          if (event.key === 'y' && event.metaKey) {
-            event.preventDefault();
-            performRedo({
-              editor: editorRef.current,
-              ydoc: ydocRef.current,
-              nodeId: node.id,
-              userId: workspace.userId,
-            });
-            return true;
-          }
+          return true;
         },
       },
       content: buildEditorContent(
@@ -423,7 +413,7 @@ export const DocumentEditor = ({
     revisionRef.current = state.revision;
 
     const relativeSelection = getRelativeSelection(editor);
-    editor.chain().setContent(editorContent).run();
+    editor.chain().setContent(editorContent, { emitUpdate: false }).run();
 
     if (relativeSelection != null) {
       restoreRelativeSelection(editor, relativeSelection);
