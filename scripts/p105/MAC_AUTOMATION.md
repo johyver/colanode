@@ -61,3 +61,28 @@ separate tested recovery evidence before adding it. Review backup logs at
 independent NAS missed-backup alerting remains a separate hardening item.
 
 No real Notion migration or production cutover is authorized by P1-05.
+
+## P1-05 foundation operational hardening — 2026-11-12
+
+For the **dedicated synthetic-only** Restic repo, `mac-retention.sh` verifies the
+exact immutable repo ID and Synology WebDAV backend, checks recent backup and
+restore evidence, and applies 7 daily / 4 weekly / 3 monthly retention with a
+48-hour minimum preservation window, grouped by tags (not ephemeral temp path).
+The `--preview` mode does not mutate files; `--apply` includes `restic prune`
+and a new repository-integrity check. No real application data is allowed.
+
+`mac-maintenance-install.sh --install` adds two macOS LaunchAgents (after a
+successful policy dry run): synthetic-only retention every **Sunday at 04:00**
+and a clean off-Mac recovery drill on the **first of each month at 05:00**.
+The already-installed daily backup at **03:00** remains separate.
+
+An independent ChatGPT condition monitor checks the live Synology encrypted
+snapshot folder daily at 05:00 and alerts if a backup is missed/unreachable.
+This alert only proves snapshot freshness, *not* that the archived data restores.
+
+The password-manager escrow and second-device access were confirmed by the
+owner; password material is never committed, sent to Notion, or uploaded to NAS.
+A restore explicitly using the separate password-manager-retrieved key (rather
+than Mac Keychain) remains a future recovery drill before any real-data
+production use. Synology free volume capacity and eventual integrated app/live
+backup consistency must be reverified before migration or production reliance.
