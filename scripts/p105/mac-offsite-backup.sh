@@ -96,13 +96,13 @@ case "$MODE" in
       pgvector/pgvector:pg17 >/dev/null
     READY=no
     for i in $(seq 1 40); do
-      if docker exec --user postgres "$VERIFY_CONTAINER" pg_isready -d postgres >/dev/null 2>&1; then READY=yes; break; fi
+      if docker exec --user postgres "$VERIFY_CONTAINER" pg_isready -h 127.0.0.1 -d postgres >/dev/null 2>&1; then READY=yes; break; fi
       sleep 1
     done
     [[ "$READY" == yes ]] || { err 'Disposable restore PostgreSQL was not ready'; exit 3; }
-    docker exec --user postgres -i "$VERIFY_CONTAINER" pg_restore --no-owner --no-acl --exit-on-error -d postgres < "$TEMP/payload/postgres.dump"
-    ROWS=$(docker exec --user postgres "$VERIFY_CONTAINER" psql -At -d postgres -c 'SELECT count(*) FROM p105_fixture')
-    VECTOR=$(docker exec --user postgres "$VERIFY_CONTAINER" psql -At -d postgres -c "SELECT count(*) FROM pg_extension WHERE extname='vector'")
+    docker exec --user postgres -i "$VERIFY_CONTAINER" pg_restore --host=127.0.0.1 --no-owner --no-acl --exit-on-error -d postgres < "$TEMP/payload/postgres.dump"
+    ROWS=$(docker exec --user postgres "$VERIFY_CONTAINER" psql -At -h 127.0.0.1 -d postgres -c 'SELECT count(*) FROM p105_fixture')
+    VECTOR=$(docker exec --user postgres "$VERIFY_CONTAINER" psql -At -h 127.0.0.1 -d postgres -c "SELECT count(*) FROM pg_extension WHERE extname='vector'")
     [[ "$ROWS" =~ ^[1-9][0-9]*$ && "$VECTOR" == 1 ]] || { err 'Synthetic database or pgvector restore invalid'; exit 3; }
     [[ -f "$TEMP/payload/storage/.p105-synthetic-only" ]] || { err 'Synthetic uploads marker missing after restore'; exit 3; }
     printf '%s SUCCESS: clean off-Mac snapshot restore with %s rows, pgvector and upload SHA256\n' "$(date -u +%FT%TZ)" "$ROWS" >> "$LOG"
