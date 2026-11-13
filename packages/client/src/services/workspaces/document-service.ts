@@ -13,6 +13,7 @@ import {
   applyMentionUpdates,
   checkMentionChanges,
 } from '@colanode/client/lib/mentions';
+import { replaceDocumentText } from '@colanode/client/lib/search-index';
 import { fetchNodeTree } from '@colanode/client/lib/utils';
 import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
 import {
@@ -27,6 +28,7 @@ import {
   NodeModel,
   SyncDocumentUpdateData,
   UpdateDocumentMutationData,
+  richTextContentSchema,
 } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
 
@@ -94,6 +96,45 @@ export class DocumentService {
       } catch (error) {
         debug(`Failed to update document ${node.id}: ${error}`);
       }
+    }
+  }
+
+  /** Restore a document to the state represented by a selected saved update. */
+  public async restoreDocumentVersion(id: string, updateId: string) {
+    const state = await this.workspace.database
+      .selectFrom('document_states')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+    const updates = await this.workspace.database
+      .selectFrom('document_updates')
+      .selectAll()
+      .where('document_id', '=', id)
+      .orderBy('created_at', 'asc')
+      .execute();
+    const targetIndex = updates.findIndex((update) => update.id === updateId);
+
+    if (targetIndex < 0) {
+      throw new Error('Document version not found');
+    }
+
+    const current = new YDoc(state?.state);
+    const target = new YDoc(state?.state);
+    for (const [index, update] of updates.entries()) {
+      current.applyUpdate(update.data);
+      if (index <= targetIndex) {
+        target.applyUpdate(update.data);
+      }
+    }
+
+    const targetContent = target.getObject<DocumentContent>();
+    if (!richTextContentSchema.safeParse(targetContent).success) {
+      throw new Error('Saved document version is invalid');
+    }
+
+    const restoreUpdate = current.update(richTextContentSchema, targetContent);
+    if (restoreUpdate) {
+      await this.updateDocument(id, restoreUpdate);
     }
   }
 
@@ -192,13 +233,7 @@ export class DocumentService {
         })
         .executeTakeFirst();
 
-      await trx
-        .insertInto('document_texts')
-        .values({
-          id: id,
-          text: text,
-        })
-        .executeTakeFirst();
+      await replaceDocumentText(trx, id, text);
 
       let createdNodeReferences: CreateNodeReference[] = [];
       if (nodeReferencesToCreate.length > 0) {
@@ -366,13 +401,7 @@ export class DocumentService {
         throw new Error('Failed to create mutation');
       }
 
-      await trx
-        .updateTable('document_texts')
-        .set({
-          text: text,
-        })
-        .where('id', '=', document.id)
-        .executeTakeFirst();
+      await replaceDocumentText(trx, document.id, text);
 
       const { createdNodeReferences, deletedNodeReferences } =
         await applyMentionUpdates(
@@ -586,13 +615,7 @@ export class DocumentService {
         throw new Error('Failed to delete update');
       }
 
-      await trx
-        .updateTable('document_texts')
-        .set({
-          text: text,
-        })
-        .where('id', '=', document.id)
-        .executeTakeFirst();
+      await replaceDocumentText(trx, document.id, text);
 
       const { createdNodeReferences, deletedNodeReferences } =
         await applyMentionUpdates(
@@ -664,6 +687,8 @@ export class DocumentService {
   }
 
   public async syncServerDocumentUpdate(data: SyncDocumentUpdateData) {
+    let lastError: unknown;
+
     for (let count = 0; count < UPDATE_RETRIES_LIMIT; count++) {
       try {
         const result = await this.trySyncDocumentUpdate(data);
@@ -671,9 +696,15 @@ export class DocumentService {
           return;
         }
       } catch (error) {
+        lastError = error;
         debug(`Failed to sync document update ${data.id}: ${error}`);
       }
     }
+
+    // Do not acknowledge the synchronizer cursor when local reconciliation
+    // failed. The synchronizer will retry this server update after the next
+    // connection tick instead of silently losing it until a full reload.
+    throw lastError ?? new Error(`Failed to sync document update ${data.id}`);
   }
 
   private async trySyncDocumentUpdate(
@@ -788,13 +819,7 @@ export class DocumentService {
           .where('id', 'in', updatesToDelete)
           .execute();
 
-        await trx
-          .updateTable('document_texts')
-          .set({
-            text: text,
-          })
-          .where('id', '=', data.documentId)
-          .executeTakeFirst();
+        await replaceDocumentText(trx, data.documentId, text);
 
         const { createdNodeReferences, deletedNodeReferences } =
           await applyMentionUpdates(
@@ -879,7 +904,7 @@ export class DocumentService {
         });
       }
     } else {
-      const { createdDocument, createdNodeReferences } =
+      const { createdDocument, createdState, createdNodeReferences } =
         await this.workspace.database.transaction().execute(async (trx) => {
           const createdDocument = await trx
             .insertInto('documents')
@@ -914,13 +939,7 @@ export class DocumentService {
             throw new Error('Failed to create document state');
           }
 
-          await trx
-            .insertInto('document_texts')
-            .values({
-              id: data.documentId,
-              text: text,
-            })
-            .executeTakeFirst();
+          await replaceDocumentText(trx, data.documentId, text);
 
           const { createdNodeReferences } = await applyMentionUpdates(
             trx,
@@ -930,7 +949,7 @@ export class DocumentService {
             mentionChanges
           );
 
-          return { createdDocument, createdNodeReferences };
+          return { createdDocument, createdState, createdNodeReferences };
         });
 
       if (!createdDocument) {
@@ -946,6 +965,18 @@ export class DocumentService {
         },
         document: mapDocument(createdDocument),
       });
+
+      if (createdState) {
+        eventBus.publish({
+          type: 'document.state.updated',
+          workspace: {
+            workspaceId: this.workspace.workspaceId,
+            userId: this.workspace.userId,
+            accountId: this.workspace.accountId,
+          },
+          documentState: mapDocumentState(createdState),
+        });
+      }
 
       for (const createdNodeReference of createdNodeReferences) {
         eventBus.publish({

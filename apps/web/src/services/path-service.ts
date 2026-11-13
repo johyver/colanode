@@ -1,7 +1,10 @@
 import { PathService } from '@colanode/client/services';
 
 export class WebPathService implements PathService {
-  private readonly appPath = '';
+  // Keep the isolated preview's client database in its own namespace. This
+  // lets the preview recover from a browser-local SQLite/OPFS lock or
+  // corruption without touching any server-side workspace data.
+  private readonly appPath = '.p201-preview';
   private readonly assetsSourcePath = 'assets';
   private readonly appDatabasePath = this.join(this.appPath, 'app.db');
   private readonly bootstrapPath = this.join(this.appPath, 'bootstrap.json');

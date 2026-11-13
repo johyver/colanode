@@ -95,7 +95,7 @@ export const View = ({ view }: ViewProps) => {
               id: fieldId,
               fieldId,
               type: 'field',
-              operator: 'equals',
+              operator: 'is_equal_to',
               value: '',
             };
 

@@ -1,5 +1,5 @@
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Extension } from '@tiptap/react';
-import { Plugin, PluginKey } from 'prosemirror-state';
 
 import { EditorNodeTypes, generateId, IdType } from '@colanode/core';
 

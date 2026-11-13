@@ -129,9 +129,26 @@ export const rollupFieldAttributesSchema = z.object({
   type: z.literal('rollup'),
   name: z.string(),
   index: z.string(),
+  relationFieldId: z.string().optional().nullable(),
+  targetFieldId: z.string().optional().nullable(),
+  aggregation: z
+    .enum(['count', 'sum', 'average', 'min', 'max', 'show_original'])
+    .optional(),
 });
 
 export type RollupFieldAttributes = z.infer<typeof rollupFieldAttributesSchema>;
+
+export const formulaFieldAttributesSchema = z.object({
+  id: z.string(),
+  type: z.literal('formula'),
+  name: z.string(),
+  index: z.string(),
+  expression: z.string().optional().nullable(),
+});
+
+export type FormulaFieldAttributes = z.infer<
+  typeof formulaFieldAttributesSchema
+>;
 
 export const selectFieldAttributesSchema = z.object({
   id: z.string(),
@@ -196,6 +213,7 @@ export const fieldAttributesSchema = z.discriminatedUnion('type', [
   phoneFieldAttributesSchema,
   relationFieldAttributesSchema,
   rollupFieldAttributesSchema,
+  formulaFieldAttributesSchema,
   selectFieldAttributesSchema,
   textFieldAttributesSchema,
   urlFieldAttributesSchema,

@@ -75,6 +75,14 @@ const fieldTypes: FieldTypeOption[] = [
     type: 'relation',
   },
   {
+    name: 'Rollup',
+    type: 'rollup',
+  },
+  {
+    name: 'Formula',
+    type: 'formula',
+  },
+  {
     name: 'Text',
     type: 'text',
   },

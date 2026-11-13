@@ -10,28 +10,28 @@ describe('services/path-service', () => {
   });
 
   describe('basic paths', () => {
-    it('returns empty string for app path', () => {
-      expect(pathService.app).toBe('');
+    it('returns the isolated preview namespace for app path', () => {
+      expect(pathService.app).toBe('.p201-preview');
     });
 
     it('returns "assets" for assets source path', () => {
       expect(pathService.assets).toBe('assets');
     });
 
-    it('returns "app.db" for app database path', () => {
-      expect(pathService.appDatabase).toBe('app.db');
+    it('returns the isolated preview app database path', () => {
+      expect(pathService.appDatabase).toBe('.p201-preview/app.db');
     });
 
-    it('returns "bootstrap.json" for bootstrap path', () => {
-      expect(pathService.bootstrap).toBe('bootstrap.json');
+    it('returns the isolated preview bootstrap path', () => {
+      expect(pathService.bootstrap).toBe('.p201-preview/bootstrap.json');
     });
 
-    it('returns "avatars" for avatars path', () => {
-      expect(pathService.avatars).toBe('avatars');
+    it('returns the isolated preview avatars path', () => {
+      expect(pathService.avatars).toBe('.p201-preview/avatars');
     });
 
-    it('returns "temp" for temp path', () => {
-      expect(pathService.temp).toBe('temp');
+    it('returns the isolated preview temp path', () => {
+      expect(pathService.temp).toBe('.p201-preview/temp');
     });
 
     it('returns "assets/fonts" for fonts path', () => {
@@ -49,24 +49,26 @@ describe('services/path-service', () => {
 
   describe('tempFile', () => {
     it('builds temp file paths correctly', () => {
-      expect(pathService.tempFile('test.txt')).toBe('temp/test.txt');
+      expect(pathService.tempFile('test.txt')).toBe('.p201-preview/temp/test.txt');
     });
 
     it('handles file names with special characters', () => {
       expect(pathService.tempFile('file-name_123.pdf')).toBe(
-        'temp/file-name_123.pdf'
+        '.p201-preview/temp/file-name_123.pdf'
       );
     });
   });
 
   describe('avatar', () => {
     it('builds avatar paths with .jpeg extension', () => {
-      expect(pathService.avatar('avatar-123')).toBe('avatars/avatar-123.jpeg');
+      expect(pathService.avatar('avatar-123')).toBe(
+        '.p201-preview/avatars/avatar-123.jpeg'
+      );
     });
 
     it('handles UUID-like avatar IDs', () => {
       expect(pathService.avatar('550e8400-e29b-41d4-a716-446655440000')).toBe(
-        'avatars/550e8400-e29b-41d4-a716-446655440000.jpeg'
+        '.p201-preview/avatars/550e8400-e29b-41d4-a716-446655440000.jpeg'
       );
     });
   });
@@ -75,33 +77,35 @@ describe('services/path-service', () => {
     const userId = 'user-123';
 
     it('builds workspace root path', () => {
-      expect(pathService.workspace(userId)).toBe('workspaces/user-123');
+      expect(pathService.workspace(userId)).toBe(
+        '.p201-preview/workspaces/user-123'
+      );
     });
 
     it('builds workspace database path', () => {
       expect(pathService.workspaceDatabase(userId)).toBe(
-        'workspaces/user-123/workspace.db'
+        '.p201-preview/workspaces/user-123/workspace.db'
       );
     });
 
     it('builds workspace files directory path', () => {
       expect(pathService.workspaceFiles(userId)).toBe(
-        'workspaces/user-123/files'
+        '.p201-preview/workspaces/user-123/files'
       );
     });
 
     it('builds workspace file path with extension', () => {
       expect(pathService.workspaceFile(userId, 'file-456', '.pdf')).toBe(
-        'workspaces/user-123/files/file-456.pdf'
+        '.p201-preview/workspaces/user-123/files/file-456.pdf'
       );
     });
 
     it('builds workspace file path with different extensions', () => {
       expect(pathService.workspaceFile(userId, 'doc-789', '.docx')).toBe(
-        'workspaces/user-123/files/doc-789.docx'
+        '.p201-preview/workspaces/user-123/files/doc-789.docx'
       );
       expect(pathService.workspaceFile(userId, 'img-001', '.jpg')).toBe(
-        'workspaces/user-123/files/img-001.jpg'
+        '.p201-preview/workspaces/user-123/files/img-001.jpg'
       );
     });
   });
@@ -238,14 +242,14 @@ describe('services/path-service', () => {
     it('handles workspace with special user ID characters', () => {
       const specialUserId = 'user-123_abc-def';
       expect(pathService.workspace(specialUserId)).toBe(
-        'workspaces/user-123_abc-def'
+        '.p201-preview/workspaces/user-123_abc-def'
       );
     });
 
     it('handles file IDs with UUIDs', () => {
       const fileId = '550e8400-e29b-41d4-a716-446655440000';
       expect(pathService.workspaceFile('user', fileId, '.txt')).toBe(
-        'workspaces/user/files/550e8400-e29b-41d4-a716-446655440000.txt'
+        '.p201-preview/workspaces/user/files/550e8400-e29b-41d4-a716-446655440000.txt'
       );
     });
 

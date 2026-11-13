@@ -47,7 +47,7 @@ export class MutationsSyncJobHandler implements JobHandler<MutationsSyncInput> {
       };
     }
 
-    if (!account.server.isAvailable) {
+    if (!workspace.mutations) {
       return {
         type: 'retry',
         delay: ms('5 seconds'),

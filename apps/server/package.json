@@ -16,7 +16,8 @@
     "clean": "del-cli dist isolate tsconfig.tsbuildinfo",
     "lint": "eslint . --max-warnings 0",
     "dev": "tsx watch --env-file .env src/index.ts",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "test:ai": "vitest run --config vitest.ai.config.ts"
   },
   "description": "",
   "devDependencies": {
@@ -38,6 +39,7 @@
     "@fastify/cors": "^11.2.0",
     "@fastify/websocket": "^11.2.0",
     "@google-cloud/storage": "^7.19.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@node-rs/argon2": "^2.0.2",
     "@redis/client": "^5.11.0",
     "@tus/azure-store": "^2.0.0",

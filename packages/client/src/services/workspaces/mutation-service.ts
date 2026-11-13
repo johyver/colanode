@@ -63,10 +63,6 @@ export class MutationService {
   }
 
   private async sendMutations(): Promise<boolean> {
-    if (!this.workspace.account.server.isAvailable) {
-      return false;
-    }
-
     const pendingMutations = await this.workspace.database
       .selectFrom('mutations')
       .selectAll()

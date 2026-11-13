@@ -18,7 +18,8 @@
     "rootDir": "src",
     "baseUrl": ".",
     "paths": {
-      "@colanode/ui/*": ["src/*"]
+      "@colanode/ui/*": ["src/*"],
+      "@colanode/client/*": ["../client/src/*"]
     }
   }
 }

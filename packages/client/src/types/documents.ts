@@ -21,4 +21,5 @@ export type DocumentUpdate = {
   id: string;
   documentId: string;
   data: string;
+  createdAt: string;
 };

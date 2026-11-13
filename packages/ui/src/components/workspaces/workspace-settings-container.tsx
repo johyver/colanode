@@ -4,6 +4,11 @@ import { toast } from 'sonner';
 import { collections } from '@colanode/ui/collections';
 import { Container } from '@colanode/ui/components/layouts/containers/container';
 import { Separator } from '@colanode/ui/components/ui/separator';
+import { AgentAutomationSettings } from '@colanode/ui/components/workspaces/agent-automation-settings';
+import { AgentBuilderSettings } from '@colanode/ui/components/workspaces/agent-builder-settings';
+import { AgentRunsSettings } from '@colanode/ui/components/workspaces/agent-runs-settings';
+import { AiModelRoutingSettings } from '@colanode/ui/components/workspaces/ai-model-routing-settings';
+import { McpConnectionsSettings } from '@colanode/ui/components/workspaces/mcp-connections-settings';
 import { WorkspaceCloud } from '@colanode/ui/components/workspaces/workspace-cloud';
 import { WorkspaceDelete } from '@colanode/ui/components/workspaces/workspace-delete';
 import { WorkspaceForm } from '@colanode/ui/components/workspaces/workspace-form';
@@ -74,6 +79,16 @@ export const WorkspaceSettingsContainer = () => {
         </div>
 
         <WorkspaceCloud />
+
+        <AiModelRoutingSettings />
+
+        <AgentBuilderSettings />
+
+        <AgentRunsSettings />
+
+        <AgentAutomationSettings />
+
+        <McpConnectionsSettings />
 
         <div className="space-y-6">
           <div>

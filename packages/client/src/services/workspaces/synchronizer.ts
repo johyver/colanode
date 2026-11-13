@@ -49,7 +49,9 @@ export class Synchronizer<TInput extends SynchronizerInput> {
     this.processor = processor;
 
     this.eventLoop = new EventLoop(
-      ms('1 minute'),
+      // Keep reconnect recovery responsive even if a socket event races a
+      // connection transition. The cursor makes this an idempotent check.
+      ms('5 seconds'),
       ms('1 second'),
       this.ping.bind(this)
     );

@@ -56,6 +56,19 @@ export class AccountService {
       ) {
         this.handleMessage(event.message);
       } else if (
+        event.type === 'account.connection.opened' &&
+        event.accountId === this.account.id
+      ) {
+        // A mutation job may have exhausted a network attempt while the
+        // browser was offline. Requeue each workspace immediately after the
+        // account socket recovers instead of waiting for the next minute-long
+        // account schedule or a page reload.
+        for (const workspace of this.app
+          .getWorkspaces()
+          .filter((workspace) => workspace.accountId === this.account.id)) {
+          void workspace.mutations.scheduleSync();
+        }
+      } else if (
         event.type === 'server.availability.changed' &&
         event.isAvailable &&
         event.domain === this.server.domain

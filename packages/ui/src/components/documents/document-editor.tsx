@@ -23,6 +23,7 @@ import {
 } from '@colanode/client/types';
 import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
+import { AiWritingPanel } from '@colanode/ui/components/documents/ai-writing-panel';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   BlockquoteCommand,
@@ -385,26 +386,29 @@ export const DocumentEditor = ({
     if (!editor) {
       return;
     }
-
     if (hasPendingChanges.current) {
       return;
     }
 
-    const beforeContent = ydocRef.current.getObject<RichTextContent>();
     const afterContent = applyRemoteDocumentUpdates(
       ydocRef.current,
       state,
       updates
     );
 
-    if (!afterContent || isEqual(afterContent, beforeContent)) {
+    if (!afterContent) {
       return;
     }
 
     const editorContent = buildEditorContent(node.id, afterContent);
 
     const relativeSelection = getRelativeSelection(editor);
-    editor.chain().setContent(editorContent, { emitUpdate: false }).run();
+    editor.commands.setContent(editorContent, { emitUpdate: false });
+    // Tiptap's React wrapper intentionally skips React rerenders for
+    // transactions.  The document view itself must still be repainted here;
+    // this is especially important after a remote update arrives while the
+    // editor remains open in another client.
+    editor.view.updateState(editor.state);
 
     if (relativeSelection != null) {
       restoreRelativeSelection(editor, relativeSelection);
@@ -420,6 +424,32 @@ export const DocumentEditor = ({
         <Fragment>
           <ToolbarMenu editor={editor} />
           <ActionMenu editor={editor} />
+          <AiWritingPanel
+            editor={editor}
+            currentSource={{
+              nodeId: node.id,
+              title:
+                'name' in node && node.name?.trim()
+                  ? node.name
+                  : 'Current page',
+              type: node.type,
+            }}
+            onUndo={() => {
+              void performUndo({
+                editor,
+                ydoc: ydocRef.current,
+                nodeId: node.id,
+                userId: workspace.userId,
+              });
+            }}
+            context={{
+              userId: workspace.userId,
+              documentId: node.id,
+              accountId: workspace.accountId,
+              workspaceId: workspace.workspaceId,
+              rootId: node.rootId,
+            }}
+          />
         </Fragment>
       )}
       <EditorContent editor={editor} />

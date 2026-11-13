@@ -11,6 +11,7 @@ export * from './apps/metadata-update';
 export * from './avatars/avatar-upload';
 export * from './chats/chat-create';
 export * from './documents/document-update';
+export * from './documents/document-restore';
 export * from './files/file-create';
 export * from './files/file-download';
 export * from './messages/message-create';
@@ -38,6 +39,24 @@ export * from './apps/tab-delete';
 export * from './nodes/node-delete';
 export * from './nodes/node-create';
 export * from './nodes/node-update';
+export * from './nodes/node-restore';
+export * from './workspaces/ai-settings-update';
+export * from './workspaces/ai-chat';
+export * from './workspaces/ai-gateway-test';
+export * from './workspaces/ai-credential-upsert';
+export * from './workspaces/ai-credential-revoke';
+export * from './workspaces/mcp-connection-upsert';
+export * from './workspaces/mcp-connection-check';
+export * from './workspaces/mcp-connection-delete';
+export * from './workspaces/mcp-connection-oauth-start';
+export * from './workspaces/mcp-tool-policy-upsert';
+export * from './workspaces/mcp-tool-policy-delete';
+export * from './workspaces/mcp-execution-approve';
+export * from './workspaces/agent-upsert';
+export * from './workspaces/agent-delete';
+export * from './workspaces/agent-run-start';
+export * from './workspaces/agent-run-resume';
+export * from './workspaces/agent-automation';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface MutationMap {}
@@ -60,8 +79,7 @@ export type ErrorMutationResult = {
 };
 
 export type MutationResult<T extends MutationInput> =
-  | SuccessMutationResult<T>
-  | ErrorMutationResult;
+  SuccessMutationResult<T> | ErrorMutationResult;
 
 export class MutationError extends Error {
   constructor(

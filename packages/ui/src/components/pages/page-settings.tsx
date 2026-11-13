@@ -1,10 +1,18 @@
-import { Copy, Image, LetterText, Settings, Trash2 } from 'lucide-react';
+import {
+  Copy,
+  History,
+  Image,
+  LetterText,
+  Settings,
+  Trash2,
+} from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import { LocalPageNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
+import { PageHistoryDialog } from '@colanode/ui/components/pages/page-history-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
 import { Button } from '@colanode/ui/components/ui/button';
 import {
@@ -24,6 +32,7 @@ interface PageSettingsProps {
 export const PageSettings = ({ page, role }: PageSettingsProps) => {
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
@@ -59,6 +68,13 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
           >
             <LetterText className="size-4" />
             Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowHistoryDialog(true)}
+          >
+            <History className="size-4" />
+            History
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
@@ -129,6 +145,11 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
         role={role}
         open={showUpdateDialog}
         onOpenChange={setShowUpdateDialog}
+      />
+      <PageHistoryDialog
+        page={page}
+        open={showHistoryDialog}
+        onOpenChange={setShowHistoryDialog}
       />
     </Fragment>
   );

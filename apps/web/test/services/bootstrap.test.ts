@@ -28,7 +28,7 @@ describe('services/bootstrap', () => {
       };
 
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify(bootstrapData),
+        '.p201-preview/bootstrap.json': JSON.stringify(bootstrapData),
       });
 
       const service = await WebBootstrapService.create(pathService, fs as any);
@@ -39,7 +39,7 @@ describe('services/bootstrap', () => {
 
     it('detects fresh install when temp exists but bootstrap does not', async () => {
       fs = new MockFileSystem();
-      await fs.makeDirectory('temp');
+      await fs.makeDirectory('.p201-preview/temp');
 
       const service = await WebBootstrapService.create(pathService, fs as any);
 
@@ -48,9 +48,9 @@ describe('services/bootstrap', () => {
 
     it('does not detect fresh install when both bootstrap and temp exist', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify({ version: '1.0.0' }),
+        '.p201-preview/bootstrap.json': JSON.stringify({ version: '1.0.0' }),
       });
-      await fs.makeDirectory('temp');
+      await fs.makeDirectory('.p201-preview/temp');
 
       const service = await WebBootstrapService.create(pathService, fs as any);
 
@@ -59,7 +59,7 @@ describe('services/bootstrap', () => {
 
     it('handles invalid JSON in bootstrap file gracefully', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': 'invalid{json}here',
+        '.p201-preview/bootstrap.json': 'invalid{json}here',
       });
 
       const service = await WebBootstrapService.create(pathService, fs as any);
@@ -70,7 +70,7 @@ describe('services/bootstrap', () => {
 
     it('handles empty bootstrap file gracefully', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': '',
+        '.p201-preview/bootstrap.json': '',
       });
 
       const service = await WebBootstrapService.create(pathService, fs as any);
@@ -81,7 +81,7 @@ describe('services/bootstrap', () => {
 
     it('handles bootstrap file with partial data', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify({}),
+        '.p201-preview/bootstrap.json': JSON.stringify({}),
       });
 
       const service = await WebBootstrapService.create(pathService, fs as any);
@@ -91,7 +91,7 @@ describe('services/bootstrap', () => {
 
     it('handles bootstrap file with extra fields', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify({
+        '.p201-preview/bootstrap.json': JSON.stringify({
           version: '2.0.0',
           extraField: 'should be ignored',
         }),
@@ -110,9 +110,9 @@ describe('services/bootstrap', () => {
       await service.updateVersion('2.0.0');
 
       expect(service.version).toBe('2.0.0');
-      expect(fs.hasFile('bootstrap.json')).toBe(true);
+      expect(fs.hasFile('.p201-preview/bootstrap.json')).toBe(true);
 
-      const savedData = fs.getFileAsString('bootstrap.json');
+      const savedData = fs.getFileAsString('.p201-preview/bootstrap.json');
       const parsed = JSON.parse(savedData);
       expect(parsed.version).toBe('2.0.0');
     });
@@ -122,7 +122,7 @@ describe('services/bootstrap', () => {
 
       await service.updateVersion('3.1.0');
 
-      const savedData = fs.getFileAsString('bootstrap.json');
+      const savedData = fs.getFileAsString('.p201-preview/bootstrap.json');
       // Should be pretty-printed with 2 spaces
       expect(savedData).toContain('\n');
       expect(savedData).toContain('  ');
@@ -133,13 +133,13 @@ describe('services/bootstrap', () => {
 
     it('overwrites existing bootstrap file', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify({ version: '1.0.0' }),
+        '.p201-preview/bootstrap.json': JSON.stringify({ version: '1.0.0' }),
       });
 
       const service = await WebBootstrapService.create(pathService, fs as any);
       await service.updateVersion('4.0.0');
 
-      const savedData = fs.getFileAsString('bootstrap.json');
+      const savedData = fs.getFileAsString('.p201-preview/bootstrap.json');
       const parsed = JSON.parse(savedData);
       expect(parsed.version).toBe('4.0.0');
     });
@@ -156,7 +156,7 @@ describe('services/bootstrap', () => {
       await service.updateVersion('3.0.0');
       expect(service.version).toBe('3.0.0');
 
-      const savedData = fs.getFileAsString('bootstrap.json');
+      const savedData = fs.getFileAsString('.p201-preview/bootstrap.json');
       const parsed = JSON.parse(savedData);
       expect(parsed.version).toBe('3.0.0');
     });
@@ -165,7 +165,7 @@ describe('services/bootstrap', () => {
   describe('version getter', () => {
     it('returns the current version', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify({ version: '5.0.0' }),
+        '.p201-preview/bootstrap.json': JSON.stringify({ version: '5.0.0' }),
       });
 
       const service = await WebBootstrapService.create(pathService, fs as any);
@@ -182,7 +182,7 @@ describe('services/bootstrap', () => {
 
   describe('needsFreshInstall getter', () => {
     it('returns true when temp directory exists without bootstrap file', async () => {
-      await fs.makeDirectory('temp');
+      await fs.makeDirectory('.p201-preview/temp');
 
       const service = await WebBootstrapService.create(pathService, fs as any);
 
@@ -191,9 +191,9 @@ describe('services/bootstrap', () => {
 
     it('returns false when bootstrap file exists regardless of temp', async () => {
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify({ version: '1.0.0' }),
+        '.p201-preview/bootstrap.json': JSON.stringify({ version: '1.0.0' }),
       });
-      await fs.makeDirectory('temp');
+      await fs.makeDirectory('.p201-preview/temp');
 
       const service = await WebBootstrapService.create(pathService, fs as any);
 
@@ -207,7 +207,7 @@ describe('services/bootstrap', () => {
     });
 
     it('returns the same value on multiple calls', async () => {
-      await fs.makeDirectory('temp');
+      await fs.makeDirectory('.p201-preview/temp');
 
       const service = await WebBootstrapService.create(pathService, fs as any);
 
@@ -268,7 +268,7 @@ describe('services/bootstrap', () => {
     it('handles upgrade scenario from old version', async () => {
       // Simulate old installation
       fs = new MockFileSystem({
-        'bootstrap.json': JSON.stringify({ version: '0.9.0' }),
+        '.p201-preview/bootstrap.json': JSON.stringify({ version: '0.9.0' }),
       });
 
       const service = await WebBootstrapService.create(pathService, fs as any);
@@ -279,7 +279,7 @@ describe('services/bootstrap', () => {
       expect(service.version).toBe('1.0.0');
 
       // Verify
-      const savedData = fs.getFileAsString('bootstrap.json');
+      const savedData = fs.getFileAsString('.p201-preview/bootstrap.json');
       const parsed = JSON.parse(savedData);
       expect(parsed.version).toBe('1.0.0');
     });

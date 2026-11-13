@@ -44,6 +44,7 @@ export class SocketConnection {
   private readonly users: Map<string, SocketUser> = new Map();
   private readonly pendingUsers: Map<string, Promise<SocketUser | null>> =
     new Map();
+  private eventQueue: Promise<void> = Promise.resolve();
 
   constructor(context: SocketContext, socket: WebSocket, onClose: () => void) {
     logger.debug(context, 'New socket connection');
@@ -93,7 +94,15 @@ export class SocketConnection {
     }
   }
 
-  public async handleEvent(event: Event) {
+  public handleEvent(event: Event) {
+    this.eventQueue = this.eventQueue
+      .then(() => this.processEvent(event))
+      .catch((error) => {
+        logger.error(error, 'Error processing socket event');
+      });
+  }
+
+  private async processEvent(event: Event) {
     if (event.type === 'account.updated') {
       this.handleAccountUpdatedEvent(event);
     } else if (event.type === 'workspace.updated') {

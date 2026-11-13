@@ -1,6 +1,7 @@
+import { eq, useLiveQuery } from '@tanstack/react-db';
 import { useForm, useStore } from '@tanstack/react-form';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod/v4';
 
@@ -9,11 +10,13 @@ import {
   compareString,
   FieldAttributes,
   FieldType,
+  RelationFieldAttributes,
   generateFractionalIndex,
   generateId,
   IdType,
 } from '@colanode/core';
 import { DatabaseSelect } from '@colanode/ui/components/databases/database-select';
+import { FieldSelect } from '@colanode/ui/components/databases/fields/field-select';
 import { FieldTypeSelect } from '@colanode/ui/components/databases/fields/field-type-select';
 import { Button } from '@colanode/ui/components/ui/button';
 import {
@@ -48,17 +51,29 @@ const formSchema = z.object({
     z.literal('select'),
     z.literal('text'),
     z.literal('relation'),
+    z.literal('rollup'),
+    z.literal('formula'),
     z.literal('updated_at'),
     z.literal('updated_by'),
     z.literal('url'),
   ]),
   relationDatabaseId: z.string().optional().nullable(),
+  rollupRelationFieldId: z.string().optional().nullable(),
+  rollupTargetFieldId: z.string().optional().nullable(),
+  rollupAggregation: z
+    .enum(['count', 'sum', 'average', 'min', 'max', 'show_original'])
+    .optional(),
+  formulaExpression: z.string().optional().nullable(),
 });
 
 const defaultValues: FieldCreateFormValues = {
   name: '',
   type: 'text',
   relationDatabaseId: null,
+  rollupRelationFieldId: null,
+  rollupTargetFieldId: null,
+  rollupAggregation: 'count',
+  formulaExpression: null,
 };
 
 type FieldCreateFormValues = z.infer<typeof formSchema>;
@@ -89,6 +104,30 @@ export const FieldCreatePopover = ({
   });
 
   const type = useStore(form.store, (state) => state.values.type);
+  const relationFieldId = useStore(
+    form.store,
+    (state) => state.values.rollupRelationFieldId
+  );
+  const relationField = database.fields.find(
+    (field): field is RelationFieldAttributes =>
+      field.id === relationFieldId && field.type === 'relation'
+  );
+  const targetDatabaseQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) =>
+          eq(nodes.id, relationField?.databaseId ?? '')
+        )
+        .findOne(),
+    [workspace.userId, relationField?.databaseId]
+  );
+  const targetFields = useMemo(() => {
+    const target = targetDatabaseQuery.data;
+    return target?.type === 'database'
+      ? Object.values(target.fields).filter((field) => field.type !== 'rollup')
+      : [];
+  }, [targetDatabaseQuery.data]);
 
   const handleCancelClick = () => {
     setOpen(false);
@@ -113,6 +152,24 @@ export const FieldCreatePopover = ({
             MutationErrorCode.RelationDatabaseNotFound,
             'Relation database not found.'
           );
+        }
+      }
+
+      if (values.type === 'formula' && !values.formulaExpression?.trim()) {
+        throw new Error('Formula expression is required.');
+      }
+
+      if (values.type === 'rollup') {
+        if (!values.rollupRelationFieldId || !values.rollupTargetFieldId) {
+          throw new Error('Rollup relation and target fields are required.');
+        }
+        const relationField = database.fields.find(
+          (field): field is RelationFieldAttributes =>
+            field.id === values.rollupRelationFieldId &&
+            field.type === 'relation'
+        );
+        if (!relationField?.databaseId) {
+          throw new Error('Rollup relation database not found.');
         }
       }
 
@@ -141,6 +198,14 @@ export const FieldCreatePopover = ({
 
         if (newField.type === 'relation') {
           newField.databaseId = values.relationDatabaseId;
+        }
+        if (newField.type === 'formula') {
+          newField.expression = values.formulaExpression?.trim() ?? null;
+        }
+        if (newField.type === 'rollup') {
+          newField.relationFieldId = values.rollupRelationFieldId;
+          newField.targetFieldId = values.rollupTargetFieldId;
+          newField.aggregation = values.rollupAggregation ?? 'count';
         }
 
         draft.fields[fieldId] = newField;
@@ -232,6 +297,85 @@ export const FieldCreatePopover = ({
                     </Field>
                   )}
                 />
+              )}
+              {type === 'formula' && (
+                <form.Field
+                  name="formulaExpression"
+                  children={(field) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>Expression</FieldLabel>
+                      <Input
+                        id={field.name}
+                        name={field.name}
+                        value={field.state.value ?? ''}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        placeholder="{{Hours}} * {{Rate}}"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Reference fields with double braces; arithmetic uses +, -, *, / and parentheses.
+                      </p>
+                    </Field>
+                  )}
+                />
+              )}
+              {type === 'rollup' && (
+                <>
+                  <form.Field
+                    name="rollupRelationFieldId"
+                    children={(field) => (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Relation field</FieldLabel>
+                        <FieldSelect
+                          fields={database.fields.filter((item) => item.type === 'relation')}
+                          value={field.state.value ?? null}
+                          onChange={(value) => {
+                            field.handleChange(value);
+                            form.setFieldValue('rollupTargetFieldId', null);
+                          }}
+                        />
+                      </Field>
+                    )}
+                  />
+                  <form.Field
+                    name="rollupTargetFieldId"
+                    children={(field) => (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Target field</FieldLabel>
+                        <FieldSelect
+                          fields={targetFields}
+                          value={field.state.value ?? null}
+                          onChange={(value) => field.handleChange(value)}
+                        />
+                      </Field>
+                    )}
+                  />
+                  <form.Field
+                    name="rollupAggregation"
+                    children={(field) => (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Aggregation</FieldLabel>
+                        <select
+                          id={field.name}
+                          className="h-9 rounded-md border bg-background px-2 text-sm"
+                          value={field.state.value}
+                          onChange={(e) =>
+                            field.handleChange(
+                              e.target.value as FieldCreateFormValues['rollupAggregation']
+                            )
+                          }
+                        >
+                          <option value="count">Count</option>
+                          <option value="sum">Sum</option>
+                          <option value="average">Average</option>
+                          <option value="min">Minimum</option>
+                          <option value="max">Maximum</option>
+                          <option value="show_original">Show original</option>
+                        </select>
+                      </Field>
+                    )}
+                  />
+                </>
               )}
             </FieldGroup>
           </div>

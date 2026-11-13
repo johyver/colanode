@@ -32,7 +32,19 @@ import { RecordSearchQueryHandler } from './records/record-search';
 import { ServerListQueryHandler } from './servers/server-list';
 import { UserListQueryHandler } from './users/user-list';
 import { UserSearchQueryHandler } from './users/user-search';
+import { AgentAutomationQueryHandler } from './workspaces/agent-automation';
+import { AgentRunHistoryQueryHandler, AgentRunsQueryHandler } from './workspaces/agent-runs';
+import { AgentsQueryHandler } from './workspaces/agents';
+import { AiCredentialsQueryHandler } from './workspaces/ai-credentials';
+import { AiLocalModelsQueryHandler } from './workspaces/ai-local-models';
+import { AiSettingsQueryHandler } from './workspaces/ai-settings';
+import { McpConnectionsQueryHandler } from './workspaces/mcp-connections';
+import { McpExecutionAuditQueryHandler } from './workspaces/mcp-execution-audit';
+import { McpToolPoliciesQueryHandler } from './workspaces/mcp-tool-policies';
+import { TombstonesListQueryHandler } from './workspaces/tombstones-list';
 import { WorkspaceListQueryHandler } from './workspaces/workspace-list';
+import { WorkspaceRagQueryHandler } from './workspaces/workspace-rag';
+import { WorkspaceSearchQueryHandler } from './workspaces/workspace-search';
 
 export type QueryHandlerMap = {
   [K in keyof QueryMap]: QueryHandler<QueryMap[K]['input']>;
@@ -71,5 +83,18 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'emoji.svg.get': new EmojiSvgGetQueryHandler(app),
     'tabs.list': new TabsListQueryHandler(app),
     'server.list': new ServerListQueryHandler(app),
+    'workspace.search': new WorkspaceSearchQueryHandler(app),
+    'workspace.rag': new WorkspaceRagQueryHandler(app),
+    'tombstones.list': new TombstonesListQueryHandler(app),
+    'ai.settings.get': new AiSettingsQueryHandler(app),
+    'ai.localModels.get': new AiLocalModelsQueryHandler(app),
+    'ai.credentials.get': new AiCredentialsQueryHandler(app),
+    'mcp.connections.get': new McpConnectionsQueryHandler(app),
+    'mcp.tool-policies.get': new McpToolPoliciesQueryHandler(app),
+    'mcp.execution-audit.get': new McpExecutionAuditQueryHandler(app),
+    'agents.get': new AgentsQueryHandler(app),
+    'agent-runs.get': new AgentRunsQueryHandler(app),
+    'agent-run-history.get': new AgentRunHistoryQueryHandler(app),
+    'agent-automation.get': new AgentAutomationQueryHandler(app),
   };
 };

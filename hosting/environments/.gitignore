@@ -7,5 +7,6 @@ secrets/
 *.key
 restic/
 backups/
+logs/
 *.dump
 *.pgdump
