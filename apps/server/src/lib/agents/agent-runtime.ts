@@ -8,7 +8,16 @@ import type {
   SelectAgentRun,
 } from '@colanode/server/data/schema';
 import { AiCredentialVault } from '@colanode/server/lib/ai/credential-vault';
-import { AiProviderGateway } from '@colanode/server/lib/ai/provider-gateway';
+import {
+  AiProviderGateway,
+  aiPolicySchema,
+} from '@colanode/server/lib/ai/provider-gateway';
+import type { AiGatewayRequest } from '@colanode/server/lib/ai/provider-gateway';
+import {
+  completeUsageForLedger,
+  enforceAiBudget,
+  recordAiUsage,
+} from '@colanode/server/lib/ai/usage-ledger';
 import { config } from '@colanode/server/lib/config';
 import {
   McpToolApprovalRequiredError,
@@ -57,6 +66,27 @@ export class AgentRuntimeError extends Error {
 const terminalStatuses = new Set<AgentRunStatus>(['succeeded', 'failed', 'canceled']);
 
 const parseJson = <T>(value: T): T => value;
+
+const parseJsonRecord = (value: unknown): Record<string, unknown> => {
+  if (!value) return {};
+  if (typeof value === 'object') return value as Record<string, unknown>;
+  if (typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+};
+
+const defaultAiPolicy = aiPolicySchema.parse({
+  localOnly: false,
+  allowCloudFallback: false,
+  fallbackProvider: null,
+  fallbackModel: null,
+  monthlySpendUsd: null,
+  monthlyTokens: null,
+});
 
 const toErrorDetails = (error: unknown): AgentRuntimeErrorDetails => {
   if (error instanceof AgentRuntimeError) return error.details;
@@ -187,17 +217,12 @@ export class AgentRuntime {
 
       const modelKey = `${run.id}:model:response`;
       const modelResult = await this.executeLedger(run, modelKey, 'model', run.current_step, { task: runInput.task }, async () => {
-        const provider = agent.model.provider;
-        const serverCredentials: Record<string, string> = {};
-        if (provider === 'openai' || provider === 'google') {
-          const key = await this.credentialVault.resolve(run.account_id, run.workspace_id, provider);
-          if (key) serverCredentials[provider] = key;
-        }
-        const response = await this.gateway.chat({
+        const policy = await this.loadPolicy(run.workspace_id);
+        const request: AiGatewayRequest = {
           task: 'response',
           messages: [
-            { role: 'system', content: agent.instructions },
-            { role: 'user', content: runInput.task },
+            { role: 'system' as const, content: agent.instructions },
+            { role: 'user' as const, content: runInput.task },
           ],
           agentId: agent.id,
           agentSettings: {
@@ -209,9 +234,41 @@ export class AgentRuntime {
           stream: false,
           timeoutMs: 30000,
           maxRetries: 2,
+        };
+        const selectedModel = this.gateway.resolveModel({ ...request, policy });
+        await enforceAiBudget({
+          accountId: run.account_id,
+          workspaceId: run.workspace_id,
+          agentId: agent.id,
+          request,
+          selectedSettings: selectedModel,
+          agentBudget: agent.budget,
+          policy,
+        });
+
+        const providers = new Set([
+          selectedModel.provider,
+          policy.allowCloudFallback ? policy.fallbackProvider : null,
+        ]);
+        const serverCredentials: Record<string, string> = {};
+        for (const provider of providers) {
+          if (provider !== 'openai' && provider !== 'google') continue;
+          const key = await this.credentialVault.resolve(run.account_id, run.workspace_id, provider);
+          if (key) serverCredentials[provider] = key;
+        }
+        const response = await this.gateway.chat({
+          ...request,
+          policy,
           ...(Object.keys(serverCredentials).length ? { serverCredentials } : {}),
         });
-        return { text: response.message.content, usage: response.usage };
+        const usage = completeUsageForLedger(response.usage, request, response.message.content);
+        await recordAiUsage({
+          accountId: run.account_id,
+          workspaceId: run.workspace_id,
+          agentId: agent.id,
+          usage,
+        });
+        return { text: response.message.content, usage };
       });
       if (modelResult.waiting) return;
       await this.succeedRun(run.id, modelResult.result ?? { text: '' });
@@ -349,6 +406,17 @@ export class AgentRuntime {
     const agent = await database.selectFrom('agents').selectAll().where('id', '=', agentId).where('workspace_id', '=', workspaceId).executeTakeFirst();
     if (!agent) throw new AgentRuntimeError({ code: 'agent_not_found', message: 'Agent was not found in this workspace.', retryable: false });
     return agent;
+  }
+
+  private async loadPolicy(workspaceId: string) {
+    const workspace = await database
+      .selectFrom('workspaces')
+      .select('attrs')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+    const ai = parseJsonRecord(parseJsonRecord(workspace?.attrs).ai);
+    const parsed = aiPolicySchema.safeParse(parseJsonRecord(ai.policy));
+    return parsed.success ? parsed.data : defaultAiPolicy;
   }
 
   private async getRun(accountId: string, workspaceId: string, runId: string): Promise<SelectAgentRun> {

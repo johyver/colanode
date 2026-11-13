@@ -83,8 +83,11 @@ const pricingPerMillionTokens: Record<
   'gemini-2.0-flash': { input: 0.1, output: 0.4 },
 };
 
-const estimateCostUsd = (usage: AiUsageMetadata) => {
-  if (usage.provider === 'ollama' || usage.provider === 'lmstudio') {
+const isLocalProvider = (provider: AiUsageMetadata['provider']) =>
+  provider === 'ollama' || provider === 'lmstudio';
+
+export const estimateCostUsd = (usage: AiUsageMetadata) => {
+  if (isLocalProvider(usage.provider)) {
     return 0;
   }
 
@@ -96,6 +99,48 @@ const estimateCostUsd = (usage: AiUsageMetadata) => {
     (usage.promptTokens / 1_000_000) * pricing.input +
     (usage.completionTokens / 1_000_000) * pricing.output
   );
+};
+
+const defaultFallbackModel = (provider: 'openai' | 'google') =>
+  provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash';
+
+export const estimateProjectedCostUsd = (input: {
+  request: AiChatRequest;
+  selectedSettings: AiModelSettings;
+  policy: AiPolicySettings;
+}) => {
+  const promptTokens = estimateInputTokens(input.request);
+  const completionTokens = input.selectedSettings.maxOutputTokens ?? 1024;
+  const totalTokens = promptTokens + completionTokens;
+  const primaryCost = estimateCostUsd({
+    provider: input.selectedSettings.provider ?? 'openai',
+    model: input.selectedSettings.model ?? 'unknown',
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    durationMs: 0,
+  });
+
+  // Reserve the more expensive permitted path so a local outage cannot bypass
+  // the configured monthly spend limit by switching to a paid fallback.
+  const fallbackCost =
+    input.policy.allowCloudFallback &&
+    !input.policy.localOnly &&
+    isLocalProvider(input.selectedSettings.provider ?? 'openai') &&
+    input.policy.fallbackProvider
+      ? estimateCostUsd({
+          provider: input.policy.fallbackProvider,
+          model:
+            input.policy.fallbackModel ??
+            defaultFallbackModel(input.policy.fallbackProvider),
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          durationMs: 0,
+        })
+      : 0;
+
+  return Math.max(primaryCost, fallbackCost);
 };
 
 const selectUsage = async (input: {
@@ -156,14 +201,7 @@ export const enforceAiBudget = async (input: {
       : Promise.resolve(undefined),
   ]);
   const projectedTokens = estimateRequestTokens(input.request, input.selectedSettings);
-  const projectedCostUsd = estimateCostUsd({
-    provider: input.selectedSettings.provider ?? 'openai',
-    model: input.selectedSettings.model ?? 'unknown',
-    promptTokens: estimateInputTokens(input.request),
-    completionTokens: input.selectedSettings.maxOutputTokens ?? 1024,
-    totalTokens: projectedTokens,
-    durationMs: 0,
-  });
+  const projectedCostUsd = estimateProjectedCostUsd(input);
 
   if (
     input.policy.monthlyTokens !== null &&
