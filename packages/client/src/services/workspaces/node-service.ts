@@ -15,6 +15,7 @@ import {
   applyMentionUpdates,
   checkMentionChanges,
 } from '@colanode/client/lib/mentions';
+import { replaceNodeText } from '@colanode/client/lib/search-index';
 import { deleteNodeRelations, fetchNodeTree } from '@colanode/client/lib/utils';
 import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
 import { DownloadStatus, LocalNode } from '@colanode/client/types';
@@ -44,11 +45,7 @@ export type CreateNodeInput = {
 };
 
 export type UpdateNodeResult =
-  | 'success'
-  | 'not_found'
-  | 'unauthorized'
-  | 'failed'
-  | 'invalid_attributes';
+  'success' | 'not_found' | 'unauthorized' | 'failed' | 'invalid_attributes';
 
 const debug = createDebugger('desktop:service:node');
 
@@ -163,16 +160,7 @@ export class NodeService {
           throw new Error('Failed to create mutation');
         }
 
-        if (nodeText) {
-          await trx
-            .insertInto('node_texts')
-            .values({
-              id: input.id,
-              name: nodeText.name,
-              attributes: nodeText.attributes,
-            })
-            .execute();
-        }
+      await replaceNodeText(trx, input.id, nodeText);
 
         let createdNodeReferences: SelectNodeReference[] = [];
         if (nodeReferencesToCreate.length > 0) {
@@ -334,16 +322,7 @@ export class NodeService {
           throw new Error('Failed to create mutation');
         }
 
-        if (nodeText) {
-          await trx
-            .insertInto('node_texts')
-            .values({
-              id: id,
-              name: nodeText.name,
-              attributes: nodeText.attributes,
-            })
-            .execute();
-        }
+      await replaceNodeText(trx, id, nodeText);
 
         let createdNodeReferences: SelectNodeReference[] = [];
         if (nodeReferencesToCreate.length > 0) {
@@ -395,6 +374,29 @@ export class NodeService {
 
     this.workspace.mutations.scheduleSync();
     return mapNode(createdNode);
+  }
+
+  public async restoreNode(nodeId: string) {
+    const tombstone = await this.workspace.database
+      .selectFrom('tombstones')
+      .selectAll()
+      .where('id', '=', nodeId)
+      .executeTakeFirst();
+
+    if (!tombstone) {
+      throw new Error('Deleted node not found');
+    }
+
+    const deletedNode = JSON.parse(tombstone.data) as SelectNode;
+    const attributes = JSON.parse(deletedNode.attributes) as NodeAttributes;
+    const restoredNode = await this.insertNode(nodeId, attributes);
+
+    await this.workspace.database
+      .deleteFrom('tombstones')
+      .where('id', '=', nodeId)
+      .execute();
+
+    return restoredNode;
   }
 
   public async updateNode<T extends NodeAttributes>(
@@ -536,16 +538,7 @@ export class NodeService {
         throw new Error('Failed to create mutation');
       }
 
-      if (nodeText) {
-        await trx
-          .insertInto('node_texts')
-          .values({
-            id: nodeId,
-            name: nodeText.name,
-            attributes: nodeText.attributes,
-          })
-          .execute();
-      }
+      await replaceNodeText(trx, nodeId, nodeText);
 
       const { createdNodeReferences, deletedNodeReferences } =
         await applyMentionUpdates(
@@ -824,16 +817,7 @@ export class NodeService {
           })
           .executeTakeFirst();
 
-        if (nodeText) {
-          await trx
-            .insertInto('node_texts')
-            .values({
-              id: update.nodeId,
-              name: nodeText.name,
-              attributes: nodeText.attributes,
-            })
-            .execute();
-        }
+        await replaceNodeText(trx, update.nodeId, nodeText);
 
         let createdNodeReferences: SelectNodeReference[] = [];
         if (nodeReferencesToCreate.length > 0) {
@@ -973,16 +957,7 @@ export class NodeService {
           throw new Error('Failed to update node state');
         }
 
-        if (nodeText) {
-          await trx
-            .insertInto('node_texts')
-            .values({
-              id: existingNode.id,
-              name: nodeText.name,
-              attributes: nodeText.attributes,
-            })
-            .execute();
-        }
+        await replaceNodeText(trx, existingNode.id, nodeText);
 
         if (updatesToDelete.length > 0) {
           await trx
@@ -1294,16 +1269,7 @@ export class NodeService {
           .where('id', '=', mutation.updateId)
           .execute();
 
-        if (nodeText) {
-          await trx
-            .insertInto('node_texts')
-            .values({
-              id: node.id,
-              name: nodeText.name,
-              attributes: nodeText.attributes,
-            })
-            .execute();
-        }
+        await replaceNodeText(trx, node.id, nodeText);
 
         const { createdNodeReferences, deletedNodeReferences } =
           await applyMentionUpdates(

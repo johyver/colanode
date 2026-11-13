@@ -31,6 +31,18 @@ export * from './emojis/emoji-svg-get';
 export * from './apps/tabs-list';
 export * from './servers/server-list';
 export * from './nodes/node-list';
+export * from './workspaces/workspace-search';
+export * from './workspaces/workspace-rag';
+export * from './workspaces/tombstones-list';
+export * from './workspaces/ai-settings';
+export * from './workspaces/ai-local-models';
+export * from './workspaces/ai-credentials';
+export * from './workspaces/mcp-connections';
+export * from './workspaces/mcp-tool-policies';
+export * from './workspaces/mcp-execution-audit';
+export * from './workspaces/agents';
+export * from './workspaces/agent-runs';
+export * from './workspaces/agent-automation';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface QueryMap {}

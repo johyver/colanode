@@ -1,0 +1,105 @@
+name: ${P701_PROJECT:?P701_PROJECT is required}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${P701_PG_DB}
+      POSTGRES_USER: ${P701_PG_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - p701_postgres_data:/var/lib/postgresql/data
+    networks: [private]
+    mem_limit: 768m
+    cpus: 0.7
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${P701_PG_USER} -d ${P701_PG_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+
+  valkey:
+    image: valkey/valkey:8.1
+    restart: unless-stopped
+    command: ["valkey-server", "/run/secrets/valkey_conf"]
+    secrets: [valkey_conf]
+    volumes:
+      - p701_valkey_data:/data
+    networks: [private]
+    mem_limit: 192m
+    cpus: 0.25
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$(cat /run/secrets/valkey_conf | sed -n 's/^requirepass //p')\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+
+  server:
+    build:
+      context: ../../..
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      CONFIG: /app/config.json
+      COLANODE_PREVIEW_HOST: 0.0.0.0
+      POSTGRES_URL: postgres://${P701_PG_USER}:${P701_PG_PASSWORD}@postgres:5432/${P701_PG_DB}
+      REDIS_URL: redis://:${P701_REDIS_PASSWORD}@valkey:6379/0
+    volumes:
+      - p701_uploads:/app/storage
+      - ./config.json:/app/config.json:ro
+    ports:
+      - "127.0.0.1:${P701_API_PORT}:3000"
+    networks: [private]
+    mem_limit: 1024m
+    cpus: 0.8
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/config').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    security_opt: ["no-new-privileges:true"]
+
+  web:
+    build:
+      context: ../../..
+      dockerfile: hosting/environments/p701-staging/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${P701_WEB_PORT}:80"
+    networks: [private]
+    mem_limit: 256m
+    cpus: 0.35
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  p701_postgres_data:
+  p701_valkey_data:
+  p701_uploads:
+
+networks:
+  private:
+    driver: bridge
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres.password
+  valkey_conf:
+    file: ./secrets/valkey.conf

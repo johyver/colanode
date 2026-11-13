@@ -7,7 +7,6 @@ import {
   gte,
   ilike,
   inArray,
-  isNull,
   isUndefined,
   length,
   lt,
@@ -29,6 +28,7 @@ import {
 } from '@colanode/core';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { filterRecords } from '@colanode/ui/lib/databases';
 
 const RECORDS_PER_PAGE = 100;
 
@@ -84,6 +84,7 @@ export const useRecordsQuery = (
     () => hasUsableFilters(filters, fieldsById),
     [filters, fieldsById]
   );
+  const hasClientFilters = filters.some((filter) => filter.type === 'group');
 
   const result = useLiveInfiniteQuery(
     (q) => {
@@ -94,7 +95,7 @@ export const useRecordsQuery = (
           eq((nodes as unknown as LocalRecordNode).databaseId, database.id)
         );
 
-      if (hasFilterDefinitions) {
+      if (hasFilterDefinitions && !hasClientFilters) {
         query = query.where(({ nodes }) => {
           return (
             buildFiltersExpression(
@@ -125,13 +126,84 @@ export const useRecordsQuery = (
       getNextPageParam: (lastPage, allPages) =>
         lastPage.length === pageSize ? allPages.length : undefined,
     },
-    [database.id, database.fields, pageSize, filters, sorts]
+    [database.id, database.fields, pageSize, filters, sorts, hasClientFilters]
+  );
+
+  const queriedData = result.data.map((node) => node as LocalRecordNode);
+  const data = useMemo(
+    () =>
+      hasClientFilters
+        ? queriedData.filter((record) =>
+            recordMatchesFilters(record, filters, fieldsById, workspace.userId)
+          )
+        : queriedData,
+    [queriedData, filters, fieldsById, hasClientFilters, workspace.userId]
   );
 
   return {
     ...result,
-    data: result.data.map((node) => node as LocalRecordNode),
+    data,
   };
+};
+
+const recordMatchesFilters = (
+  record: LocalRecordNode,
+  filters: DatabaseViewFilterAttributes[],
+  fieldsById: Record<string, FieldAttributes>,
+  currentUserId: string
+) => {
+  return filters.every((filter) => {
+    if (filter.type === 'group') {
+      const matches = filter.filters.map((nestedFilter) =>
+        recordMatchesFieldFilter(record, nestedFilter, fieldsById, currentUserId)
+      );
+      return filter.operator === 'or'
+        ? matches.some(Boolean)
+        : matches.every(Boolean);
+    }
+
+    return recordMatchesFieldFilter(record, filter, fieldsById, currentUserId);
+  });
+};
+
+const recordMatchesFieldFilter = (
+  record: LocalRecordNode,
+  filter: DatabaseViewFieldFilterAttributes,
+  fieldsById: Record<string, FieldAttributes>,
+  currentUserId: string
+) => {
+  if (filter.fieldId === SpecialId.Name) {
+    const value = record.name;
+    const filterValue = typeof filter.value === 'string' ? filter.value : '';
+
+    switch (filter.operator) {
+      case 'is_empty':
+        return value.length === 0;
+      case 'is_not_empty':
+        return value.length > 0;
+      case 'is_equal_to':
+        return value === filterValue;
+      case 'is_not_equal_to':
+        return value !== filterValue;
+      case 'contains':
+        return value.includes(filterValue);
+      case 'does_not_contain':
+        return !value.includes(filterValue);
+      case 'starts_with':
+        return value.startsWith(filterValue);
+      case 'ends_with':
+        return value.endsWith(filterValue);
+      default:
+        return false;
+    }
+  }
+
+  const field = fieldsById[filter.fieldId];
+  if (!field) {
+    return false;
+  }
+
+  return filterRecords([record], filter, field, currentUserId).length > 0;
 };
 
 const buildFieldsById = (fields: FieldAttributes[]) => {
@@ -340,7 +412,7 @@ const buildBooleanFilterExpression = (
   }
 
   if (filter.operator === 'is_false') {
-    return or(eq(fieldValue, false), isValueMissing(fieldValue));
+    return eq(coalesce(fieldValue, false), false);
   }
 
   return null;
@@ -622,7 +694,7 @@ const getFieldValue = <T = FieldValuePrimitive,>(
 const buildArrayIsEmpty = (
   valueRef: ArrayValueExpression
 ): BooleanExpression => {
-  return or(isValueMissing(valueRef), eq(length(coalesce(valueRef, [])), 0));
+  return eq(length(coalesce(valueRef, [])), 0);
 };
 
 const buildArrayIsNotEmpty = (
@@ -683,7 +755,7 @@ const combineWithOr = (
 };
 
 const isValueMissing = (value: unknown): BooleanExpression => {
-  return or(isNull(value as never), isUndefined(value as never));
+  return isUndefined(value as never);
 };
 
 const isValuePresent = (value: unknown): BooleanExpression => {

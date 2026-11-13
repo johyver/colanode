@@ -1,5 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { Check } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -11,6 +13,11 @@ import {
   DatabaseForm,
   DatabaseFormValues,
 } from '@colanode/ui/components/databases/database-form';
+import {
+  DATABASE_TEMPLATES,
+  createDatabaseFromTemplate,
+  DatabaseTemplate,
+} from '@colanode/ui/components/databases/database-templates';
 import {
   Dialog,
   DialogContent,
@@ -33,10 +40,29 @@ export const DatabaseCreateDialog = ({
 }: DatabaseCreateDialogProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate({ from: '/workspace/$userId' });
+  const [selectedTemplate, setSelectedTemplate] = useState<DatabaseTemplate | null>(null);
 
   const { mutate } = useMutation({
     mutationFn: async (values: DatabaseFormValues) => {
       const nodes = workspace.collections.nodes;
+
+      if (selectedTemplate) {
+        const created = createDatabaseFromTemplate({
+          template: selectedTemplate,
+          name: values.name.trim() || selectedTemplate.name,
+          parentId: spaceId,
+          userId: workspace.userId,
+        });
+        // Persist each node in dependency order. A single optimistic batch
+        // can race the node-create mutation queue when it contains a
+        // database, its views, and records; waiting keeps seeded records
+        // durable across a reload as well as visible immediately.
+        for (const node of created) {
+          const transaction = nodes.insert(node);
+          await transaction.isPersisted.promise;
+        }
+        return created[0] as LocalDatabaseNode;
+      }
 
       const databaseId = generateId(IdType.Database);
       const fieldId = generateId(IdType.Field);
@@ -84,6 +110,7 @@ export const DatabaseCreateDialog = ({
       return database;
     },
     onSuccess: (database) => {
+      setSelectedTemplate(null);
       navigate({
         to: '$nodeId',
         params: {
@@ -97,15 +124,47 @@ export const DatabaseCreateDialog = ({
     },
   });
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setSelectedTemplate(null);
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create database</DialogTitle>
           <DialogDescription>
-            Create a new database to store your data
+            Start blank or use a reusable workflow template
           </DialogDescription>
         </DialogHeader>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <button
+            type="button"
+            className={`rounded-md border p-3 text-left text-sm ${selectedTemplate === null ? 'border-foreground' : 'hover:bg-accent'}`}
+            onClick={() => setSelectedTemplate(null)}
+          >
+            <div className="flex items-center justify-between font-medium">
+              Blank database
+              {selectedTemplate === null && <Check className="size-4" />}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Build your own fields and views.</p>
+          </button>
+          {DATABASE_TEMPLATES.map((template) => (
+            <button
+              type="button"
+              key={template.id}
+              className={`rounded-md border p-3 text-left text-sm ${selectedTemplate?.id === template.id ? 'border-foreground' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedTemplate(template)}
+            >
+              <div className="flex items-center justify-between font-medium">
+                {template.name}
+                {selectedTemplate?.id === template.id && <Check className="size-4" />}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{template.description}</p>
+            </button>
+          ))}
+        </div>
         <DatabaseForm
           id={generateId(IdType.Database)}
           values={{
@@ -113,7 +172,7 @@ export const DatabaseCreateDialog = ({
           }}
           submitText="Create"
           onCancel={() => {
-            onOpenChange(false);
+            handleOpenChange(false);
           }}
           onSubmit={(values) => mutate(values)}
         />

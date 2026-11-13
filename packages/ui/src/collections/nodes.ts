@@ -69,7 +69,20 @@ export const createNodesCollection = (userId: string) => {
         return {
           cleanup: () => window.eventBus.unsubscribe(subscriptionId),
           loadSubset: async (options) => {
-            const parsedOptions = parseLoadSubsetOptions(options);
+            let parsedOptions: ReturnType<typeof parseLoadSubsetOptions>;
+            try {
+              parsedOptions = parseLoadSubsetOptions(options);
+            } catch {
+              // The local workspace DB is already access-scoped. Some nested
+              // UI queries contain OR expressions that the collection parser
+              // cannot lower to a server filter, so load all locally synced
+              // nodes instead of breaking the route with a runtime error.
+              parsedOptions = {
+                filters: [],
+                sorts: [],
+                limit: undefined,
+              };
+            }
 
             const nodes = await window.colanode.executeQuery({
               type: 'node.list',

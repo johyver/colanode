@@ -47,14 +47,23 @@ export class MutationsSyncJobHandler implements JobHandler<MutationsSyncInput> {
       };
     }
 
-    if (!account.server.isAvailable) {
+    if (!workspace.mutations) {
       return {
         type: 'retry',
         delay: ms('5 seconds'),
       };
     }
 
-    await workspace.mutations.sync();
+    const synced = await workspace.mutations.sync();
+    if (!synced) {
+      // Keep the durable job in the queue until the connection recovers;
+      // JobService retries this without consuming its transient error budget.
+      return {
+        type: 'retry',
+        delay: ms('5 seconds'),
+      };
+    }
+
     return {
       type: 'success',
     };

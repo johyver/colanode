@@ -52,6 +52,22 @@ export class DocumentStateGetQueryHandler
       };
     }
 
+    // Remote reconciliation updates the document row and the checkpoint in
+    // one transaction. Treat the document event as a refresh signal too so
+    // the editor cannot remain stale if the checkpoint event is coalesced
+    // while a reconnect is being processed.
+    if (
+      event.type === 'document.updated' &&
+      event.workspace.userId === input.userId &&
+      event.document.id === input.documentId
+    ) {
+      const newOutput = await this.handleQuery(input);
+      return {
+        hasChanges: true,
+        result: newOutput,
+      };
+    }
+
     if (
       event.type === 'node.deleted' &&
       event.workspace.userId === input.userId &&

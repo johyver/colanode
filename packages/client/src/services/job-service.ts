@@ -437,6 +437,10 @@ export class JobService {
           .where('id', '=', jobRow.id)
           .where('status', '=', JobStatus.Active)
           .execute();
+        this.sleepScheduler.updateResolveTimeIfEarlier(
+          JOB_LOOP_ID,
+          retryAt.getTime()
+        );
       } else if (output.type === 'cancel') {
         if (jobRow.schedule_id) {
           await this.removeJobSchedule(jobRow.schedule_id);
@@ -469,6 +473,10 @@ export class JobService {
           })
           .where('id', '=', jobRow.id)
           .execute();
+        this.sleepScheduler.updateResolveTimeIfEarlier(
+          JOB_LOOP_ID,
+          retryAt.getTime()
+        );
       } else {
         await this.app.database
           .deleteFrom('jobs')

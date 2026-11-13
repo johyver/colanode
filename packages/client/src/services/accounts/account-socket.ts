@@ -13,12 +13,25 @@ export class AccountSocket {
   private socket: WebSocket | null;
   private backoffCalculator: BackoffCalculator;
   private closingCount: number;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null;
+  private readonly handleOnline = () => {
+    this.backoffCalculator.reset();
+    this.checkConnection();
+  };
 
   constructor(account: AccountService) {
     this.account = account;
     this.socket = null;
     this.backoffCalculator = new BackoffCalculator();
     this.closingCount = 0;
+    this.reconnectTimer = null;
+
+    const runtime = globalThis as typeof globalThis & {
+      addEventListener?: (type: string, listener: () => void) => void;
+    };
+    if (typeof runtime.addEventListener === 'function') {
+      runtime.addEventListener('online', this.handleOnline);
+    }
   }
 
   public async init(): Promise<void> {
@@ -36,9 +49,15 @@ export class AccountSocket {
       return;
     }
 
-    const response = await this.account.client
-      .post('v1/sockets')
-      .json<SocketInitOutput>();
+    let response: SocketInitOutput;
+    try {
+      response = await this.account.client
+        .post('v1/sockets')
+        .json<SocketInitOutput>();
+    } catch {
+      this.scheduleReconnect();
+      return;
+    }
 
     this.socket = new WebSocket(
       `${this.account.server.socketBaseUrl}/v1/sockets/${response.id}`
@@ -62,6 +81,7 @@ export class AccountSocket {
     this.socket.onopen = () => {
       debug(`Socket connection for account ${this.account.id} opened`);
 
+      this.clearReconnectTimer();
       this.backoffCalculator.reset();
       eventBus.publish({
         type: 'account.connection.opened',
@@ -76,6 +96,7 @@ export class AccountSocket {
         type: 'account.connection.closed',
         accountId: this.account.id,
       });
+      this.scheduleReconnect();
     };
 
     this.socket.onclose = () => {
@@ -85,7 +106,32 @@ export class AccountSocket {
         type: 'account.connection.closed',
         accountId: this.account.id,
       });
+      this.scheduleReconnect();
     };
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer !== null) {
+      return;
+    }
+
+    // Keep recovery bounded even when the browser reports two failures for
+    // one network transition. The online event resets the backoff immediately
+    // when the runtime exposes it; this timer covers workers and browsers that
+    // do not forward that event to the socket owner.
+    const delay = Math.min(this.backoffCalculator.getCurrentDelay(), 5000);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.backoffCalculator.reset();
+      this.checkConnection();
+    }, delay);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   }
 
   public isConnected(): boolean {
@@ -106,6 +152,7 @@ export class AccountSocket {
   }
 
   public close(): void {
+    this.clearReconnectTimer();
     if (this.socket) {
       debug(`Closing socket connection for account ${this.account.id}`);
       this.socket.close();

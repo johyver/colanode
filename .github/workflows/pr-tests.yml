@@ -1,44 +1,108 @@
-name: PR - Server and Web tests
+name: PR - Colanode quality and security
 
 on:
   pull_request:
     branches:
       - main
+      - develop/colanode-custom
+  workflow_dispatch:
 
+# Checks run on isolated GitHub runners with no production or Notion credentials.
 permissions:
   contents: read
 
-# Cancel older runs for the same PR so only the latest commit is tested.
-concurrency:
-  group: pr-tests-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
-  tests:
-    name: Run affected tests
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    env:
-      TURBO_SCM_BASE: origin/main
-      TURBO_SCM_HEAD: HEAD
+    timeout-minutes: 25
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
+          node-version: '22.23.4'
+          cache: npm
+      - name: Clean install from committed lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Lint all packages with lint scripts
+        run: npx turbo run lint --parallel
 
-      - name: Ensure main ref is available
-        run: git fetch origin main --depth=1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: '22.23.4'
+          cache: npm
+      - name: Clean install from committed lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Verify patched Metro image-size compatibility
+        run: node scripts/verify-metro-image-size.mjs
+      - name: Build backend and web dependencies
+        run: npx turbo run build --filter=@colanode/server --filter=@colanode/web
+      # Server Vitest tests use disposable Postgres and Redis Testcontainers on
+      # GitHub-hosted runners. No local DEV or production services are accessed.
+      - name: Unit and integration tests (server, web, CRDT, core)
+        run: npx turbo run test --filter=@colanode/server --filter=@colanode/web --filter=@colanode/crdt --filter=@colanode/core -- --run --testTimeout=15000
 
-      - name: Install dependencies
-        run: npm ci
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+          cache: npm
+      # Fail closed on reported high/critical production dependencies.
+      # Known baseline advisories are tracked in P1-03A; never silently
+      # suppress them or turn this job into an optional check.
+      - name: Audit production dependency graph
+        run: npm audit --omit=dev --audit-level=high --json > npm-audit-report.json
+      - name: Preserve audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-production
+          path: npm-audit-report.json
+          if-no-files-found: ignore
+          retention-days: 7
 
-      # Turbo compares this PR against main and runs test tasks only for affected packages.
-      # `--watch false` prevents web Vitest from staying in interactive watch mode.
-      - name: Run affected tests with Turbo
-        run: npx turbo run test --affected -- --watch false
+  backup-restore:
+    name: Backup and restore drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install free encrypted backup client
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends restic
+      - name: Verify isolated Mac synthetic staging blueprint
+        run: python3 scripts/p105/verify-mac-staging.py
+      - name: Test encrypted synthetic PostgreSQL and file recovery
+        run: bash scripts/p105/smoke-test.sh
+      - name: Test isolated Mac staging and separate-volume recovery
+        run: bash scripts/p105/mac-staging-drill.sh
+
+  container-security:
+    name: Container image security
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production server image from the repository root
+        run: docker build --file apps/server/Dockerfile --tag colanode-ci-security:current .
+      - name: Fail on critical or high OS and runtime library vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 immutable commit
+        with:
+          image-ref: colanode-ci-security:current
+          scanners: vuln
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          format: table

@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { initApp } from '@colanode/server/app';
 import { migrate } from '@colanode/server/data/database';
 import { initRedis } from '@colanode/server/data/redis';
+import { agentAutomation } from '@colanode/server/lib/agents/agent-automation';
 import { eventBus } from '@colanode/server/lib/event-bus';
 import { emailService } from '@colanode/server/services/email-service';
 import { jobService } from '@colanode/server/services/job-service';
@@ -21,6 +22,7 @@ const init = async () => {
   await jobService.initWorker();
 
   await eventBus.init();
+  agentAutomation.init();
   await emailService.init();
 };
 

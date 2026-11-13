@@ -90,6 +90,7 @@ class JobService {
     await this.initNodeUpdatesMergeRecurringJob();
     await this.initDocumentUpdatesMergeRecurringJob();
     await this.initCleanupRecurringJob();
+    await this.initAgentTriggerTickRecurringJob();
   }
 
   // private async initNodeEmbedScanRecurringJob(): Promise<void> {
@@ -201,6 +202,16 @@ class JobService {
     } else {
       this.jobQueue.removeJobScheduler(id);
     }
+  }
+
+  private async initAgentTriggerTickRecurringJob(): Promise<void> {
+    if (!this.jobQueue) return;
+    const id = 'agent.trigger.tick';
+    await this.jobQueue.upsertJobScheduler(
+      id,
+      { pattern: '0 * * * * *' },
+      { name: id, data: { type: id } as JobInput }
+    );
   }
 }
 

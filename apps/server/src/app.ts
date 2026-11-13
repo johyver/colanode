@@ -30,7 +30,7 @@ export const initApp = () => {
   server.register(clientDecorator);
   server.register(apiRoutes);
 
-  server.listen({ port: 3000, host: '0.0.0.0' }, (err, address) => {
+  server.listen({ port: Number(process.env.COLANODE_PREVIEW_PORT ?? 3000), host: process.env.COLANODE_PREVIEW_HOST ?? '127.0.0.1' }, (err, address) => {
     if (err) {
       logger.error(err, 'Failed to start server');
       process.exit(1);

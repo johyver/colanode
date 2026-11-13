@@ -7,7 +7,7 @@ import {
   useEditor,
 } from '@tiptap/react';
 import { debounce, isEqual } from 'lodash-es';
-import { Fragment, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -23,6 +23,7 @@ import {
 } from '@colanode/client/types';
 import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
+import { AiWritingPanel } from '@colanode/ui/components/documents/ai-writing-panel';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   BlockquoteCommand,
@@ -87,6 +88,8 @@ import {
   Markdown,
 } from '@colanode/ui/editor/extensions';
 import { ToolbarMenu, ActionMenu } from '@colanode/ui/editor/menus';
+import { getDocumentHistoryAction } from '@colanode/ui/lib/document-history-shortcuts';
+import { applyRemoteDocumentUpdates } from '@colanode/ui/lib/remote-document-updates';
 
 interface DocumentEditorProps {
   node: LocalNode;
@@ -100,10 +103,8 @@ const buildYDoc = (
   state: DocumentState | null | undefined,
   updates: DocumentUpdate[]
 ) => {
-  const ydoc = new YDoc(state?.state);
-  for (const update of updates) {
-    ydoc.applyUpdate(update.data);
-  }
+  const ydoc = new YDoc();
+  applyRemoteDocumentUpdates(ydoc, state, updates);
   return ydoc;
 };
 
@@ -121,7 +122,7 @@ const performUndo = async ({
   userId,
 }: UndoRedoParams) => {
   const beforeContent = ydoc.getObject<RichTextContent>();
-  const update = ydoc.undo();
+  const update = ydoc.undo(richTextContentSchema);
 
   if (!update) {
     return;
@@ -134,7 +135,7 @@ const performUndo = async ({
   }
 
   const editorContent = buildEditorContent(nodeId, afterContent);
-  editor.chain().setContent(editorContent).run();
+  editor.chain().setContent(editorContent, { emitUpdate: false }).run();
 
   const result = await window.colanode.executeMutation({
     type: 'document.update',
@@ -155,10 +156,7 @@ const performRedo = async ({
   userId,
 }: UndoRedoParams) => {
   const beforeContent = ydoc.getObject<RichTextContent>();
-  console.log('beforeContent', beforeContent);
-  const update = ydoc.redo();
-  console.log('afterContent', ydoc.getObject<RichTextContent>());
-  console.log('update', update);
+  const update = ydoc.redo(richTextContentSchema);
 
   if (!update) {
     return;
@@ -171,7 +169,7 @@ const performRedo = async ({
   }
 
   const editorContent = buildEditorContent(nodeId, afterContent);
-  editor.chain().setContent(editorContent).run();
+  editor.chain().setContent(editorContent, { emitUpdate: false }).run();
 
   const result = await window.colanode.executeMutation({
     type: 'document.update',
@@ -195,7 +193,7 @@ export const DocumentEditor = ({
   const workspace = useWorkspace();
 
   const hasPendingChanges = useRef(false);
-  const revisionRef = useRef(state?.revision ?? 0);
+  const [saveGeneration, setSaveGeneration] = useState(0);
   const ydocRef = useRef<YDoc>(buildYDoc(state, updates));
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
 
@@ -228,6 +226,9 @@ export const DocumentEditor = ({
         );
 
         hasPendingChanges.current = false;
+        // A remote update could have arrived while an editor save was pending.
+        // Retry reconciliation now that it is safe to update the editor view.
+        setSaveGeneration((generation) => generation + 1);
 
         if (!update) {
           return;
@@ -340,36 +341,28 @@ export const DocumentEditor = ({
             return false;
           }
 
-          if (event.key === 'z' && event.metaKey && !event.shiftKey) {
-            event.preventDefault();
-            performUndo({
+          const historyAction = getDocumentHistoryAction(event);
+          if (!historyAction) {
+            return false;
+          }
+
+          event.preventDefault();
+          if (historyAction === 'undo') {
+            void performUndo({
               editor: editorRef.current,
               ydoc: ydocRef.current,
               nodeId: node.id,
               userId: workspace.userId,
             });
-            return true;
-          }
-          if (event.key === 'z' && event.metaKey && event.shiftKey) {
-            event.preventDefault();
-            performRedo({
+          } else {
+            void performRedo({
               editor: editorRef.current,
               ydoc: ydocRef.current,
               nodeId: node.id,
               userId: workspace.userId,
             });
-            return true;
           }
-          if (event.key === 'y' && event.metaKey) {
-            event.preventDefault();
-            performRedo({
-              editor: editorRef.current,
-              ydoc: ydocRef.current,
-              nodeId: node.id,
-              userId: workspace.userId,
-            });
-            return true;
-          }
+          return true;
         },
       },
       content: buildEditorContent(
@@ -393,42 +386,34 @@ export const DocumentEditor = ({
     if (!editor) {
       return;
     }
-
-    if (!state) {
-      return;
-    }
-
     if (hasPendingChanges.current) {
       return;
     }
 
-    if (revisionRef.current === state?.revision) {
-      return;
-    }
+    const afterContent = applyRemoteDocumentUpdates(
+      ydocRef.current,
+      state,
+      updates
+    );
 
-    const beforeContent = ydocRef.current.getObject<RichTextContent>();
-
-    ydocRef.current.applyUpdate(state.state);
-    for (const update of updates) {
-      ydocRef.current.applyUpdate(update.data);
-    }
-
-    const afterContent = ydocRef.current.getObject<RichTextContent>();
-
-    if (isEqual(afterContent, beforeContent)) {
+    if (!afterContent) {
       return;
     }
 
     const editorContent = buildEditorContent(node.id, afterContent);
-    revisionRef.current = state.revision;
 
     const relativeSelection = getRelativeSelection(editor);
-    editor.chain().setContent(editorContent).run();
+    editor.commands.setContent(editorContent, { emitUpdate: false });
+    // Tiptap's React wrapper intentionally skips React rerenders for
+    // transactions.  The document view itself must still be repainted here;
+    // this is especially important after a remote update arrives while the
+    // editor remains open in another client.
+    editor.view.updateState(editor.state);
 
     if (relativeSelection != null) {
       restoreRelativeSelection(editor, relativeSelection);
     }
-  }, [state, updates, editor]);
+  }, [state, updates, editor, saveGeneration, node.id]);
 
   // Keep editorRef updated so handleKeyDown can access the current editor
   editorRef.current = editor;
@@ -439,6 +424,32 @@ export const DocumentEditor = ({
         <Fragment>
           <ToolbarMenu editor={editor} />
           <ActionMenu editor={editor} />
+          <AiWritingPanel
+            editor={editor}
+            currentSource={{
+              nodeId: node.id,
+              title:
+                'name' in node && node.name?.trim()
+                  ? node.name
+                  : 'Current page',
+              type: node.type,
+            }}
+            onUndo={() => {
+              void performUndo({
+                editor,
+                ydoc: ydocRef.current,
+                nodeId: node.id,
+                userId: workspace.userId,
+              });
+            }}
+            context={{
+              userId: workspace.userId,
+              documentId: node.id,
+              accountId: workspace.accountId,
+              workspaceId: workspace.workspaceId,
+              rootId: node.rootId,
+            }}
+          />
         </Fragment>
       )}
       <EditorContent editor={editor} />

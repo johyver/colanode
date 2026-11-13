@@ -1,0 +1,9 @@
+# P1-05 SYNTHETIC-ONLY staging backup. Copy to private per-user config (chmod 600).
+# Do not put credentials, plaintext passwords or production data here.
+P105_ENVIRONMENT=synthetic
+P105_SOURCE_CONTAINER=colanode-p105-source-REPLACE
+P105_UPLOADS_DIR=/tmp/colanode-p105-REPLACE/storage
+P105_DB_NAME=postgres
+P105_DB_USER=postgres
+P105_RESTIC_KEYCHAIN_SERVICE=Colanode-P1-05-Synology-Synthetic-Restic
+P105_REMOTE_REPOSITORY=rclone:colanode-nas:home/Colanode-Backups/P1-05-Automation/synthetic

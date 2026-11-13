@@ -32,6 +32,15 @@ import { addWorkspaceStorageLimitColumns } from './00029-add-workspace-storage-l
 import { addWorkspaceIndexToUploads } from './00030-add-workspace-index-to-uploads';
 import { addCreatedAtIndexToUploads } from './00031-add-created-at-index-to-uploads';
 import { cleanupCounterTriggers } from './00032-cleanup-counter-triggers';
+import { createAiCredentialsTable } from './00033-create-ai-credentials-table';
+import { createAiUsageLedgerTable } from './00034-create-ai-usage-ledger-table';
+import { createMcpConnectionsTable } from './00035-create-mcp-connections-table';
+import { addMcpAuthReconnectState } from './00036-add-mcp-auth-reconnect-state';
+import { widenMcpStatusColumn } from './00037-widen-mcp-status-column';
+import { createMcpToolSecurityTables } from './00038-create-mcp-tool-security-tables';
+import { createAgentsTable } from './00039-create-agents-table';
+import { createAgentRuntimeTables } from './00040-create-agent-runtime-tables';
+import { createAgentAutomationTables } from './00041-create-agent-automation-tables';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -70,4 +79,13 @@ export const databaseMigrations: Record<string, Migration> = {
   '00030_add_workspace_index_to_uploads': addWorkspaceIndexToUploads,
   '00031_add_created_at_index_to_uploads': addCreatedAtIndexToUploads,
   '00032_cleanup_counter_triggers': cleanupCounterTriggers,
+  '00033_create_ai_credentials_table': createAiCredentialsTable,
+  '00034_create_ai_usage_ledger_table': createAiUsageLedgerTable,
+  '00035_create_mcp_connections_table': createMcpConnectionsTable,
+  '00036_add_mcp_auth_reconnect_state': addMcpAuthReconnectState,
+  '00037_widen_mcp_status_column': widenMcpStatusColumn,
+  '00038_create_mcp_tool_security_tables': createMcpToolSecurityTables,
+  '00039_create_agents_table': createAgentsTable,
+  '00040_create_agent_runtime_tables': createAgentRuntimeTables,
+  '00041_create_agent_automation_tables': createAgentAutomationTables,
 };

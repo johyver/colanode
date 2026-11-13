@@ -1,0 +1,12 @@
+# Never commit live stage credentials or backup archives.
+.env
+.env.*
+secrets/
+*-secrets/
+*.password
+*.key
+restic/
+backups/
+logs/
+*.dump
+*.pgdump

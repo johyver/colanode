@@ -1,4 +1,7 @@
 export * from './accounts';
+export * from './ai';
+export * from './agents';
+export * from './agent-runs';
 export * from './apps';
 export * from './databases';
 export * from './documents';

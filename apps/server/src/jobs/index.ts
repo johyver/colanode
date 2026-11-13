@@ -1,4 +1,6 @@
 // import { assistantRespondHandler } from '@colanode/server/jobs/assistant-response';
+import { agentRunExecuteHandler } from '@colanode/server/jobs/agent-run-execute';
+import { agentTriggerTickHandler } from '@colanode/server/jobs/agent-trigger-tick';
 import { cleanupHandler } from '@colanode/server/jobs/cleanup';
 // import { documentEmbedHandler } from '@colanode/server/jobs/document-embed';
 // import { documentEmbedScanHandler } from '@colanode/server/jobs/document-embed-scan';
@@ -24,6 +26,8 @@ type JobHandlerMap = {
 };
 
 export const jobHandlerMap: JobHandlerMap = {
+  'agent.run.execute': agentRunExecuteHandler,
+  'agent.trigger.tick': agentTriggerTickHandler,
   'email.verify.send': emailVerifySendHandler,
   'email.password.reset.send': emailPasswordResetSendHandler,
   'email.workspace.invitation.send': emailWorkspaceInvitationSendHandler,

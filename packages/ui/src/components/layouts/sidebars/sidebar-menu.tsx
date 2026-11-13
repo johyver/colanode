@@ -1,10 +1,19 @@
 import { count, inArray, useLiveQuery } from '@tanstack/react-db';
-import { LayoutGrid, MessageCircle, Settings } from 'lucide-react';
+import {
+  History,
+  LayoutGrid,
+  MessageCircle,
+  Search,
+  Settings,
+} from 'lucide-react';
+import { useState } from 'react';
 
 import { SidebarMenuType, UploadStatus } from '@colanode/client/types';
 import { SidebarMenuFooter } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-footer';
 import { SidebarMenuHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-header';
 import { SidebarMenuIcon } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-icon';
+import { WorkspaceSearchDialog } from '@colanode/ui/components/workspaces/workspace-search-dialog';
+import { WorkspaceTrashDialog } from '@colanode/ui/components/workspaces/workspace-trash-dialog';
 import { useRadar } from '@colanode/ui/contexts/radar';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
@@ -16,6 +25,8 @@ interface SidebarMenuProps {
 export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
   const workspace = useWorkspace();
   const radar = useRadar();
+  const [showSearch, setShowSearch] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
 
   const chatsState = radar.getChatsState(workspace.userId);
   const channelsState = radar.getChannelsState(workspace.userId);
@@ -55,6 +66,8 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
             maxCount: 99,
           }}
         />
+        <SidebarMenuIcon icon={Search} onClick={() => setShowSearch(true)} />
+        <SidebarMenuIcon icon={History} onClick={() => setShowTrash(true)} />
         <SidebarMenuIcon
           icon={LayoutGrid}
           onClick={() => {
@@ -84,6 +97,8 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
         />
       </div>
       <SidebarMenuFooter />
+      <WorkspaceSearchDialog open={showSearch} onOpenChange={setShowSearch} />
+      <WorkspaceTrashDialog open={showTrash} onOpenChange={setShowTrash} />
     </div>
   );
 };
